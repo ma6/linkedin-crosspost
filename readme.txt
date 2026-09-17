@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.0
+Stable tag: 0.10.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,12 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.10.1 =
+* Fixed: the 0.10.0 API migration used the wrong LinkedIn-Version header —
+  202508 (August 2025) instead of 202608 (August 2026) — which LinkedIn
+  almost certainly rejects outright, breaking every post, including the
+  text-only ones that worked before that migration. Corrected to 202608.
 
 = 0.10.0 =
 * Found the actual reason images never posted, with no error: this plugin

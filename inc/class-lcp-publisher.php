@@ -25,7 +25,7 @@ final class LCP_Publisher {
 
 	const IMAGES_API_URL  = 'https://api.linkedin.com/rest/images?action=initializeUpload';
 	const POSTS_API_URL   = 'https://api.linkedin.com/rest/posts';
-	const API_VERSION     = '202508';
+	const API_VERSION     = '202608'; // YYYYMM — August 2026. Bump occasionally; LinkedIn sunsets old monikers.
 	const CRON_HOOK       = 'lcp_crosspost_event';
 	const DELAY           = MINUTE_IN_SECONDS;
 	const RUN_NOW_ACTION  = 'lcp_run_now';
