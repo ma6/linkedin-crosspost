@@ -42,6 +42,26 @@ final class LCP_Publisher {
 		add_action( 'admin_notices', array( __CLASS__, 'error_notice' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'run_now_notice' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'debug_trace_notice' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'runtime_check_notice' ) );
+	}
+
+	/**
+	 * Unconditional, every-admin-page proof that this exact file version is
+	 * the code actually executing right now — not just the file on disk.
+	 * `Version:` in the Plugins list is read straight from the file header
+	 * via a raw file read, bypassing PHP entirely; it can show the right
+	 * number even while PHP's opcode cache is still serving a stale
+	 * compiled version of the actual logic. If this notice is genuinely
+	 * never visible anywhere in wp-admin, that's the opcache theory
+	 * confirmed. Temporary — remove once #5 is confirmed fixed.
+	 *
+	 * @return void
+	 */
+	public static function runtime_check_notice(): void {
+		printf(
+			'<div class="notice notice-warning"><p>%s</p></div>',
+			esc_html( 'LCP runtime check: LCP_Publisher is executing version ' . LCP_VERSION . ' right now (' . self::API_VERSION . ').' )
+		);
 	}
 
 	/**

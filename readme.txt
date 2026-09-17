@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.2
+Stable tag: 0.10.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,16 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.10.3 =
+* Temporary diagnostic: an unconditional notice on every wp-admin page
+  proving which exact version is actually executing at runtime — the
+  Plugins list's version number is read straight from the file header via
+  a raw file read, bypassing PHP, and can look current even while PHP's
+  opcode cache is still serving stale compiled logic from an earlier
+  version. Added because the 0.10.2 debug trace never appeared at all, not
+  even as an empty trace, which a stale opcache would fully explain.
+  Remove once #5 is confirmed fixed.
 
 = 0.10.2 =
 * Temporary diagnostic: the meta box now shows a raw HTTP trace of the last
