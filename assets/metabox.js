@@ -43,14 +43,29 @@
 			$remove.hide();
 		} );
 
-		// "Post to LinkedIn now" is its own small form so it can post to a
-		// different destination than the editor's save — sync in whatever
-		// is currently in the box right before it submits, so it always
-		// posts what's actually in the fields, not just what was last saved.
-		$( '#lcp-run-now-form' ).on( 'submit', function () {
-			$( '#lcp-run-now-image-id' ).val( $hidden.val() );
-			$( '#lcp-run-now-text' ).val( $( '#lcp-text' ).val() );
-			$( '#lcp-run-now-share-enabled' ).val( $( '#lcp-share-enabled' ).is( ':checked' ) ? '1' : '0' );
+		// "Post to LinkedIn now": build a standalone <form> on the fly,
+		// appended to <body> (never nested inside whatever this meta box
+		// happens to be rendered inside), carrying live copies of the
+		// image/text/toggle — not whatever was last saved.
+		$( '#lcp-run-now-button' ).on( 'click', function () {
+			var $button = $( this );
+			var $form = $( '<form>', {
+				method: 'post',
+				action: $button.data( 'url' ),
+			} ).appendTo( 'body' );
+
+			function field( name, value ) {
+				$( '<input>', { type: 'hidden', name: name, value: value } ).appendTo( $form );
+			}
+
+			field( 'action', 'lcp_run_now' );
+			field( 'post_id', $button.data( 'post-id' ) );
+			field( '_wpnonce', $button.data( 'nonce' ) );
+			field( 'lcp_image_id', $hidden.val() );
+			field( 'lcp_text', $( '#lcp-text' ).val() );
+			field( 'lcp_share_enabled', $( '#lcp-share-enabled' ).is( ':checked' ) ? '1' : '0' );
+
+			$form.trigger( 'submit' );
 		} );
 	} );
 }( jQuery ) );

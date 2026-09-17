@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.8.0
+Stable tag: 0.8.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,14 @@ leaves its imported drafts alone.
   a non-square image is kept.
 
 == Changelog ==
+
+= 0.8.1 =
+* Fixed: "Post to LinkedIn now" did nothing at all once browser/page caching
+  was ruled out. It was wrapped in its own `<form>`, nested inside the block
+  editor's own form for classic meta-box compatibility — nested forms are
+  invalid HTML, and the browser silently drops the inner one, leaving the
+  button with no form to submit. It's no longer inside any `<form>`; a
+  click now builds a standalone form via JS, appended directly to `<body>`.
 
 = 0.8.0 =
 * Fixed: "Post to LinkedIn now" could post an empty post (just the link)

@@ -197,22 +197,22 @@ final class LCP_Metabox {
 			echo '<p class="description">' . esc_html__( 'Not queued.', 'linkedin-crosspost' ) . '</p>';
 		}
 
-		// A self-contained form carrying its own copies of the image/text/
-		// toggle values (synced from the live fields by metabox.js right
-		// before submit — see there for why). Confirmed live: without this,
-		// "Post to LinkedIn now" posted whatever was last *saved*, not what
-		// was currently typed, because nothing had triggered an actual save
-		// in between — this button now saves exactly what's in the box
-		// itself, so it never depends on a separate save having happened.
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" id="lcp-run-now-form">';
-		wp_nonce_field( LCP_Publisher::RUN_NOW_ACTION . '_' . $post->ID );
-		printf( '<input type="hidden" name="action" value="%s">', esc_attr( LCP_Publisher::RUN_NOW_ACTION ) );
-		printf( '<input type="hidden" name="post_id" value="%d">', $post->ID );
-		echo '<input type="hidden" name="lcp_image_id" id="lcp-run-now-image-id" value="">';
-		echo '<input type="hidden" name="lcp_text" id="lcp-run-now-text" value="">';
-		echo '<input type="hidden" name="lcp_share_enabled" id="lcp-run-now-share-enabled" value="1">';
-		submit_button( __( 'Post to LinkedIn now', 'linkedin-crosspost' ), 'secondary', 'submit', false );
-		echo '</form>';
+		// No <form> element here at all. This meta box can end up rendered
+		// inside the block editor's own <form> for classic meta-box compat
+		// — confirmed live: a <form> here made the button do *nothing* on
+		// click once caching was actually ruled out, because a form nested
+		// inside another is invalid HTML and the browser silently drops it,
+		// leaving the button with no form to submit. metabox.js instead
+		// builds a standalone <form> on click, appended directly to <body>,
+		// carrying live copies of the image/text/toggle (not whatever was
+		// last saved — see the AGENTS.md entry on this).
+		printf(
+			'<button type="button" class="button button-secondary" id="lcp-run-now-button" data-post-id="%d" data-nonce="%s" data-url="%s">%s</button>',
+			$post->ID,
+			esc_attr( wp_create_nonce( LCP_Publisher::RUN_NOW_ACTION . '_' . $post->ID ) ),
+			esc_url( admin_url( 'admin-post.php' ) ),
+			esc_html__( 'Post to LinkedIn now', 'linkedin-crosspost' )
+		);
 	}
 
 	/**

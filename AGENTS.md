@@ -96,9 +96,20 @@ for what's open and what order they're meant to land in.
   values — the button was never wrong, the assumption that "visibly filled
   in" means "saved" was. `LCP_Metabox::persist()` now exists so
   `handle_run_now()` can save the button's own live-synced copy of the
-  fields (see `metabox.js`'s submit handler on `#lcp-run-now-form`) right
-  before posting. Any future "do it now" action needs the same treatment —
-  never assume the DB already matches what's on screen.
+  fields (see `metabox.js`) right before posting. Any future "do it now"
+  action needs the same treatment — never assume the DB already matches
+  what's on screen.
+- **Never wrap anything in this meta box in a `<form>`.** A fifth live test:
+  once caching was genuinely ruled out, "Post to LinkedIn now" did *nothing*
+  on click — no request at all. It was in its own `<form>`, and this meta
+  box can be rendered inside the block editor's own `<form>` for classic
+  meta-box compatibility; a form nested inside another is invalid HTML, and
+  the browser silently drops the inner one, leaving a `type="submit"`
+  button with nothing to submit to. Fixed by never emitting a `<form>` here
+  at all — the button carries its data as `data-*` attributes, and
+  `metabox.js` builds a standalone `<form>` on click, appended directly to
+  `document.body`. If this box ever needs another button that posts
+  somewhere, follow the same pattern, not a nested form.
 
 ## Before calling a change done
 
