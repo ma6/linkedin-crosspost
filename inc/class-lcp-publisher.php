@@ -100,7 +100,21 @@ final class LCP_Publisher {
 			return; // Already queued.
 		}
 
-		wp_schedule_single_event( time() + self::DELAY, self::CRON_HOOK, array( $post->ID ) );
+		$scheduled = wp_schedule_single_event( time() + self::DELAY, self::CRON_HOOK, array( $post->ID ), true );
+		if ( false === $scheduled || is_wp_error( $scheduled ) ) {
+			// wp_schedule_single_event() failing is itself the failure worth
+			// surfacing — something on this host (a caching/security plugin
+			// filtering pre_schedule_event, wp-cron disabled with no real
+			// replacement, ...) is blocking scheduling outright, and that's
+			// very different from "scheduled fine, wp-cron just hasn't run
+			// yet" — don't let it look identical to that in the UI.
+			self::record_error(
+				$post->ID,
+				is_wp_error( $scheduled )
+					? $scheduled->get_error_message()
+					: __( 'wp_schedule_single_event() returned false — something on this site is blocking wp-cron scheduling.', 'linkedin-crosspost' )
+			);
+		}
 	}
 
 	/**
@@ -114,13 +128,15 @@ final class LCP_Publisher {
 	public static function run_crosspost( int $post_id ): void {
 		$post = get_post( $post_id );
 		if ( ! $post || 'publish' !== $post->post_status ) {
+			self::record_error( $post_id, __( 'Skipped: the post was no longer published when the crosspost ran.', 'linkedin-crosspost' ) );
 			return;
 		}
 		if ( ! LCP_Metabox::share_enabled( $post_id ) ) {
+			self::record_error( $post_id, __( 'Skipped: sharing was turned off when the crosspost ran.', 'linkedin-crosspost' ) );
 			return;
 		}
 		if ( get_post_meta( $post_id, '_lcp_linkedin_urn', true ) ) {
-			return;
+			return; // Already posted — nothing wrong, nothing to report.
 		}
 		if ( ! LCP_OAuth::is_connected() ) {
 			self::record_error( $post_id, __( 'LinkedIn is not connected.', 'linkedin-crosspost' ) );

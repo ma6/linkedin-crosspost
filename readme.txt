@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,15 @@ leaves its imported drafts alone.
   a non-square image is kept.
 
 == Changelog ==
+
+= 0.7.0 =
+* A third live test on onygo.org still queued nothing, with no error notice
+  either — meaning it wasn't reaching a place that could report a problem.
+  The scheduling call's own return value is now checked and surfaced as an
+  error notice immediately if it fails, and every other reason the delayed
+  job might not post (no longer published, sharing turned off in the
+  meantime) is now recorded too, instead of returning silently. This should
+  finally pin down what onygo.org is actually doing to it.
 
 = 0.6.0 =
 * The meta box now shows crosspost status on a published post: already

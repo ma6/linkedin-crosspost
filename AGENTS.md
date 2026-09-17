@@ -79,6 +79,15 @@ for what's open and what order they're meant to land in.
   error. `LCP_Metabox` shows whether/when a crosspost is actually queued, and
   a "Post to LinkedIn now" button (`LCP_Publisher::handle_run_now()`) always
   works independent of wp-cron — keep both whenever this area changes.
+- **No silent returns in `schedule_crosspost()`/`run_crosspost()`.** A third
+  live test queued nothing and showed no error either, meaning even the
+  scheduling call itself may be getting blocked (a caching/security plugin
+  filtering `pre_schedule_event`, most likely) with nothing to show for it.
+  `wp_schedule_single_event()`'s return is now checked (pass `$wp_error =
+  true` to get the real WP_Error instead of a bare `false`), and every
+  early-return branch in `run_crosspost()` records why — the only exception
+  is "already posted", which isn't a problem. If you add a new early return
+  to either function, record a reason; don't let it go quiet again.
 
 ## Before calling a change done
 
