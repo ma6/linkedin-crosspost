@@ -15,20 +15,18 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Not the older /v2/assets + /v2/ugcPosts pair — LinkedIn's own docs
  * (learn.microsoft.com/.../shares/images-api) say outright "The Images API
- * replaces the Assets API", and /v2/ugcPosts is the same generation. Found
- * live: the old pair silently failed to post an image (no image API docs
- * were checked before building #4 — an assumption that turned out wrong).
- * Every call here needs a `LinkedIn-Version: YYYYMM` header, which the old
- * pair never required.
+ * replaces the Assets API", and /v2/ugcPosts is the same generation. Every
+ * call here needs a `LinkedIn-Version: YYYYMM` header, which the old pair
+ * never required.
  */
 final class LCP_Publisher {
 
-	const IMAGES_API_URL  = 'https://api.linkedin.com/rest/images?action=initializeUpload';
-	const POSTS_API_URL   = 'https://api.linkedin.com/rest/posts';
-	const API_VERSION     = '202608'; // YYYYMM — August 2026. Bump occasionally; LinkedIn sunsets old monikers.
-	const CRON_HOOK       = 'lcp_crosspost_event';
-	const DELAY           = MINUTE_IN_SECONDS;
-	const RUN_NOW_ACTION  = 'lcp_run_now';
+	const IMAGES_API_URL = 'https://api.linkedin.com/rest/images?action=initializeUpload';
+	const POSTS_API_URL  = 'https://api.linkedin.com/rest/posts';
+	const API_VERSION    = '202608'; // YYYYMM — August 2026. Bump occasionally; LinkedIn sunsets old monikers.
+	const CRON_HOOK      = 'lcp_crosspost_event';
+	const DELAY          = MINUTE_IN_SECONDS;
+	const RUN_NOW_ACTION = 'lcp_run_now';
 
 	/**
 	 * Hook registration.
@@ -39,29 +37,6 @@ final class LCP_Publisher {
 		add_action( 'transition_post_status', array( __CLASS__, 'schedule_crosspost' ), 10, 3 );
 		add_action( self::CRON_HOOK, array( __CLASS__, 'run_crosspost' ) );
 		add_action( 'admin_post_' . self::RUN_NOW_ACTION, array( __CLASS__, 'handle_run_now' ) );
-		add_action( 'admin_notices', array( __CLASS__, 'error_notice' ) );
-		add_action( 'admin_notices', array( __CLASS__, 'run_now_notice' ) );
-		add_action( 'admin_notices', array( __CLASS__, 'debug_trace_notice' ) );
-		add_action( 'admin_notices', array( __CLASS__, 'runtime_check_notice' ) );
-	}
-
-	/**
-	 * Unconditional, every-admin-page proof that this exact file version is
-	 * the code actually executing right now — not just the file on disk.
-	 * `Version:` in the Plugins list is read straight from the file header
-	 * via a raw file read, bypassing PHP entirely; it can show the right
-	 * number even while PHP's opcode cache is still serving a stale
-	 * compiled version of the actual logic. If this notice is genuinely
-	 * never visible anywhere in wp-admin, that's the opcache theory
-	 * confirmed. Temporary — remove once #5 is confirmed fixed.
-	 *
-	 * @return void
-	 */
-	public static function runtime_check_notice(): void {
-		printf(
-			'<div class="notice notice-warning"><p>%s</p></div>',
-			esc_html( 'LCP runtime check: LCP_Publisher is executing version ' . LCP_VERSION . ' right now (' . self::API_VERSION . ').' )
-		);
 	}
 
 	/**
@@ -69,7 +44,7 @@ final class LCP_Publisher {
 	 * instead of waiting on the queued wp-cron event, and cancels that event
 	 * so it doesn't also fire later (run_crosspost() is idempotent either
 	 * way, this is just tidiness). Exists because wp-cron is page-load
-	 * pseudo-cron and can silently never fire on some hosts (see #5).
+	 * pseudo-cron and can silently never fire on some hosts.
 	 *
 	 * Also saves the meta box's image/text/toggle from this button's own
 	 * form fields before posting — confirmed live that without this, the
@@ -80,13 +55,10 @@ final class LCP_Publisher {
 	 */
 	public static function handle_run_now(): void {
 		$post_id = isset( $_POST['post_id'] ) ? absint( wp_unslash( $_POST['post_id'] ) ) : 0;
-		self::checkpoint( $post_id, 'handle_run_now: entered, post_id=' . $post_id );
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
-			self::checkpoint( $post_id, 'handle_run_now: capability check FAILED' );
 			wp_die( esc_html__( 'You are not allowed to do that.', 'linkedin-crosspost' ) );
 		}
 		check_admin_referer( self::RUN_NOW_ACTION . '_' . $post_id );
-		self::checkpoint( $post_id, 'handle_run_now: capability + nonce OK' );
 
 		LCP_Metabox::persist(
 			$post_id,
@@ -94,7 +66,6 @@ final class LCP_Publisher {
 			isset( $_POST['lcp_text'] ) ? (string) wp_unslash( $_POST['lcp_text'] ) : '',
 			isset( $_POST['lcp_share_enabled'] ) && '1' === wp_unslash( $_POST['lcp_share_enabled'] )
 		);
-		self::checkpoint( $post_id, 'handle_run_now: persist() done' );
 
 		$queued = wp_next_scheduled( self::CRON_HOOK, array( $post_id ) );
 		if ( $queued ) {
@@ -104,13 +75,9 @@ final class LCP_Publisher {
 		// A fresh manual post supersedes any earlier failure.
 		delete_post_meta( $post_id, '_lcp_crosspost_error' );
 
-		self::checkpoint( $post_id, 'handle_run_now: calling run_crosspost()' );
 		self::run_crosspost( $post_id );
-		self::checkpoint( $post_id, 'handle_run_now: run_crosspost() returned' );
 
-		$status    = get_post_meta( $post_id, '_lcp_linkedin_urn', true ) ? 'posted' : 'failed';
-		$edit_url  = admin_url( 'post.php?post=' . $post_id . '&action=edit' );
-		wp_safe_redirect( add_query_arg( 'lcp_run_status', $status, $edit_url ) );
+		wp_safe_redirect( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) );
 		exit;
 	}
 
@@ -175,71 +142,33 @@ final class LCP_Publisher {
 	 * @return void
 	 */
 	public static function run_crosspost( int $post_id ): void {
-		self::checkpoint( $post_id, 'run_crosspost: entered' );
 		$post = get_post( $post_id );
 		if ( ! $post || 'publish' !== $post->post_status ) {
-			self::checkpoint( $post_id, 'run_crosspost: STOPPED — not published (status=' . ( $post ? $post->post_status : 'no post object' ) . ')' );
 			self::record_error( $post_id, __( 'Skipped: the post was no longer published when the crosspost ran.', 'linkedin-crosspost' ) );
 			return;
 		}
 		if ( ! LCP_Metabox::share_enabled( $post_id ) ) {
-			self::checkpoint( $post_id, 'run_crosspost: STOPPED — sharing disabled' );
 			self::record_error( $post_id, __( 'Skipped: sharing was turned off when the crosspost ran.', 'linkedin-crosspost' ) );
 			return;
 		}
 		if ( get_post_meta( $post_id, '_lcp_linkedin_urn', true ) ) {
-			self::checkpoint( $post_id, 'run_crosspost: STOPPED — _lcp_linkedin_urn already set to "' . get_post_meta( $post_id, '_lcp_linkedin_urn', true ) . '"' );
 			return; // Already posted — nothing wrong, nothing to report.
 		}
 		if ( ! LCP_OAuth::is_connected() ) {
-			self::checkpoint( $post_id, 'run_crosspost: STOPPED — LCP_OAuth::is_connected() is false' );
 			self::record_error( $post_id, __( 'LinkedIn is not connected.', 'linkedin-crosspost' ) );
 			return;
 		}
-		self::checkpoint( $post_id, 'run_crosspost: all guards passed, about to call post_to_linkedin()' );
-
-		// Capture every outbound call to LinkedIn via core's own
-		// http_api_debug hook and store it unconditionally, regardless of
-		// what this code decides happened — repeated live failures showed
-		// neither success nor a recorded error, meaning this plugin's own
-		// success/failure interpretation can't be trusted blind right now.
-		// This bypasses that entirely: raw HTTP code + a body snippet for
-		// every LinkedIn call this attempt made, so what actually happened
-		// is visible even if the logic below is still missing a case.
-		$trace   = array();
-		$capture = static function ( $response, $type, $class, $args, $url ) use ( &$trace ) {
-			if ( ! is_string( $url ) || ! str_contains( $url, 'linkedin.com' ) ) {
-				return;
-			}
-			$code = is_wp_error( $response )
-				? 'WP_Error: ' . $response->get_error_message()
-				: (string) wp_remote_retrieve_response_code( $response );
-			$body = is_wp_error( $response )
-				? ''
-				: substr( wp_strip_all_tags( (string) wp_remote_retrieve_body( $response ) ), 0, 300 );
-			$trace[] = array(
-				'url'  => $url,
-				'code' => $code,
-				'body' => $body,
-			);
-			self::log_line( 'HTTP ' . $url . ' -> ' . $code . ' ' . $body );
-		};
-		add_action( 'http_api_debug', $capture, 10, 5 );
 
 		// This runs unsupervised via wp-cron — nobody is watching a PHP
 		// error log. A PHP error anywhere below (post_to_linkedin(),
-		// upload_image(), square_crop()'s WP_Image_Editor calls, ...) would
-		// otherwise abort silently: the event still leaves the schedule
-		// (wp-cron marks it done regardless), but neither the success path
-		// nor record_error() below it ever runs, so the meta box is left
-		// showing "Not queued." forever with no explanation. \Throwable
-		// catches PHP's Error hierarchy (TypeError etc.) as well as
-		// exceptions, so this is the actual safety net, not just style.
+		// upload_image(), ...) would otherwise abort silently: the event
+		// still leaves the schedule (wp-cron marks it done regardless), but
+		// neither the success path nor record_error() below it ever runs.
+		// \Throwable catches PHP's Error hierarchy (TypeError etc.) as well
+		// as exceptions, so this is the actual safety net, not just style.
 		try {
 			$result = self::post_to_linkedin( $post );
 		} catch ( \Throwable $e ) {
-			remove_action( 'http_api_debug', $capture, 10 );
-			self::record_debug_trace( $post_id, $trace );
 			self::record_error(
 				$post_id,
 				sprintf(
@@ -250,8 +179,6 @@ final class LCP_Publisher {
 			);
 			return;
 		}
-		remove_action( 'http_api_debug', $capture, 10 );
-		self::record_debug_trace( $post_id, $trace );
 
 		if ( is_wp_error( $result ) ) {
 			self::record_error( $post_id, $result->get_error_message() );
@@ -294,9 +221,9 @@ final class LCP_Publisher {
 			'commentary'                => $commentary,
 			'visibility'                => 'PUBLIC',
 			'distribution'              => array(
-				'feedDistribution'               => 'MAIN_FEED',
-				'targetEntities'                  => array(),
-				'thirdPartyDistributionChannels'  => array(),
+				'feedDistribution'                => 'MAIN_FEED',
+				'targetEntities'                   => array(),
+				'thirdPartyDistributionChannels'   => array(),
 			),
 			'lifecycleState'            => 'PUBLISHED',
 			'isReshareDisabledByAuthor' => false,
@@ -401,15 +328,6 @@ final class LCP_Publisher {
 			return new WP_Error( 'lcp_image_read_failed', __( 'The crosspost image could not be read.', 'linkedin-crosspost' ) );
 		}
 
-		// Found live: the PUT was rejected with a bare HTTP 400 (an HTML
-		// page, not a JSON API error) with no Content-Type header sent at
-		// all. LinkedIn's older Assets API docs show a plain --upload-file
-		// curl with none either, but the newer Images API's upload URL
-		// looks structurally different (dms-uploads/sp/v2/... vs the older
-		// dms-uploads/{id}/...) and its initializeUpload response carries
-		// no per-upload headers to copy — sending the file's real mime type
-		// explicitly is the standard fix for a raw-binary PUT rejected like
-		// this, so try that before assuming anything more exotic.
 		$filetype = wp_check_filetype( $path );
 		$mime     = ! empty( $filetype['type'] ) ? $filetype['type'] : 'application/octet-stream';
 
@@ -462,7 +380,11 @@ final class LCP_Publisher {
 
 	/**
 	 * Remember a failure where Martin will see it, instead of the publish
-	 * silently doing nothing.
+	 * silently doing nothing. Shown in the "LinkedIn Crosspost" meta box
+	 * itself (LCP_Metabox::render_status()) — not as an admin_notice; this
+	 * plugin's admin_notices output was confirmed, by elimination across
+	 * several diagnostics, to never render on onygo.org, while the meta
+	 * box's own output always has.
 	 *
 	 * @param int    $post_id Post ID.
 	 * @param string $message Error message.
@@ -470,185 +392,5 @@ final class LCP_Publisher {
 	 */
 	private static function record_error( int $post_id, string $message ): void {
 		update_post_meta( $post_id, '_lcp_crosspost_error', $message );
-	}
-
-	/**
-	 * Store the raw HTTP trace of the most recent attempt — every LinkedIn
-	 * call made, its status code, and a body snippet — unconditionally,
-	 * regardless of whether this code thinks it succeeded or failed. A
-	 * temporary diagnostic while tracking down repeated live failures that
-	 * showed neither a success nor a recorded error.
-	 *
-	 * @param int   $post_id Post ID.
-	 * @param array $trace   Rows of ['url' => ..., 'code' => ..., 'body' => ...].
-	 * @return void
-	 */
-	private static function record_debug_trace( int $post_id, array $trace ): void {
-		update_post_meta( $post_id, '_lcp_debug_trace', wp_json_encode( $trace ) );
-	}
-
-	/**
-	 * Append one step to a per-post execution breadcrumb trail — temporary,
-	 * to see exactly how far a run got before going quiet. Keeps the last
-	 * 30 steps.
-	 *
-	 * @param int    $post_id Post ID (0 is fine — still records against
-	 *                        that as a marker something ran before a valid
-	 *                        post ID was even known).
-	 * @param string $label   What just happened.
-	 * @return void
-	 */
-	private static function checkpoint( int $post_id, string $label ): void {
-		$steps   = get_post_meta( $post_id, '_lcp_debug_steps', true );
-		$steps   = is_array( $steps ) ? $steps : array();
-		$steps[] = gmdate( 'H:i:s' ) . ' — ' . $label;
-		$steps   = array_slice( $steps, -30 );
-		update_post_meta( $post_id, '_lcp_debug_steps', $steps );
-		self::log_line( 'post ' . $post_id . ': ' . $label );
-	}
-
-	/**
-	 * Path to a plain-text log file — readable directly, independent of
-	 * whether wp-admin notices render on this site at all (they didn't:
-	 * even an unconditional one, and WP's own "Post published." notice was
-	 * confirmed working, ruling out notices being suppressed site-wide). In
-	 * the uploads directory, not the plugin's own folder — the plugin
-	 * folder isn't reliably writable at runtime (confirmed live: it wasn't,
-	 * likely the same security hardening — Really Simple Security is
-	 * active — that many hosts apply), while uploads/ always has to be, or
-	 * WordPress itself couldn't handle media. Temporary; remove once #5 is
-	 * confirmed fixed.
-	 *
-	 * @return string
-	 */
-	private static function log_path(): string {
-		return trailingslashit( wp_upload_dir()['basedir'] ) . 'lcp-debug.log';
-	}
-
-	/**
-	 * Append one line to the plain-text debug log.
-	 *
-	 * @param string $line What happened.
-	 * @return void
-	 */
-	private static function log_line( string $line ): void {
-		$entry = gmdate( 'Y-m-d H:i:s' ) . ' UTC — ' . $line . "\n";
-		file_put_contents( self::log_path(), $entry, FILE_APPEND | LOCK_EX ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-	}
-
-	/**
-	 * Read the debug log's content, most recent last — for display on
-	 * Settings → LinkedIn Connection.
-	 *
-	 * @return string
-	 */
-	public static function read_log(): string {
-		$path = self::log_path();
-		if ( ! file_exists( $path ) ) {
-			return '';
-		}
-		return (string) file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-	}
-
-	/**
-	 * Show the most recent crosspost failure on that post's edit screen,
-	 * until it's cleared by a successful crosspost.
-	 *
-	 * @return void
-	 */
-	public static function error_notice(): void {
-		$screen = get_current_screen();
-		if ( ! $screen || 'post' !== $screen->base ) {
-			return;
-		}
-		$post_id = isset( $_GET['post'] ) ? absint( wp_unslash( $_GET['post'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-		$error = get_post_meta( $post_id, '_lcp_crosspost_error', true );
-		if ( ! $error ) {
-			return;
-		}
-		printf(
-			'<div class="notice notice-error is-dismissible"><p>%s %s</p></div>',
-			esc_html__( 'LinkedIn crosspost failed:', 'linkedin-crosspost' ),
-			esc_html( (string) $error )
-		);
-	}
-
-	/**
-	 * One-time success notice after "Post to LinkedIn now" (?lcp_run_status=
-	 * posted). The "failed" case needs no separate notice — error_notice()
-	 * already shows the message run_crosspost() just recorded.
-	 *
-	 * @return void
-	 */
-	public static function run_now_notice(): void {
-		$screen = get_current_screen();
-		if ( ! $screen || 'post' !== $screen->base ) {
-			return;
-		}
-		$status = isset( $_GET['lcp_run_status'] ) ? sanitize_key( wp_unslash( $_GET['lcp_run_status'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		if ( 'posted' !== $status ) {
-			return;
-		}
-		printf(
-			'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
-			esc_html__( 'Posted to LinkedIn.', 'linkedin-crosspost' )
-		);
-	}
-
-	/**
-	 * Show the execution breadcrumb trail and the raw HTTP trace of the
-	 * most recent crosspost attempt — unconditionally, whether or not
-	 * either one has anything in it, so an empty result is as visible as a
-	 * populated one. Temporary, for tracking down live failures that show
-	 * neither success nor a recorded error. Remove once #5 is confirmed
-	 * fixed.
-	 *
-	 * @return void
-	 */
-	public static function debug_trace_notice(): void {
-		// No get_current_screen()->base gate here (unlike error_notice()) —
-		// deliberately, to rule out that check itself being the reason a
-		// notice doesn't render on this specific admin theme/editor setup.
-		// Falls back to $_REQUEST so it also fires on the block editor's
-		// own REST-driven requests if post.php's $_GET isn't what's set.
-		$post_id = isset( $_REQUEST['post'] ) ? absint( wp_unslash( $_REQUEST['post'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-
-		echo '<div class="notice notice-warning"><p><strong>' . esc_html__( 'LinkedIn crosspost debug (temporary):', 'linkedin-crosspost' ) . '</strong></p>';
-
-		$steps = get_post_meta( $post_id, '_lcp_debug_steps', true );
-		echo '<p>' . esc_html__( 'Execution steps:', 'linkedin-crosspost' ) . '</p>';
-		if ( is_array( $steps ) && ! empty( $steps ) ) {
-			echo '<ol>';
-			foreach ( $steps as $step ) {
-				printf( '<li><code>%s</code></li>', esc_html( (string) $step ) );
-			}
-			echo '</ol>';
-		} else {
-			echo '<p>' . esc_html__( '(none recorded for this post — handle_run_now()/run_crosspost() never ran at all)', 'linkedin-crosspost' ) . '</p>';
-		}
-
-		$raw   = get_post_meta( $post_id, '_lcp_debug_trace', true );
-		$trace = $raw ? json_decode( (string) $raw, true ) : null;
-		echo '<p>' . esc_html__( 'LinkedIn HTTP calls:', 'linkedin-crosspost' ) . '</p>';
-		if ( is_array( $trace ) && ! empty( $trace ) ) {
-			foreach ( $trace as $row ) {
-				printf(
-					'<p><code>%s</code><br>%s: %s</p>',
-					esc_html( (string) ( $row['url'] ?? '' ) ),
-					esc_html__( 'Status', 'linkedin-crosspost' ),
-					esc_html( (string) ( $row['code'] ?? '' ) . ' ' . ( $row['body'] ?? '' ) )
-				);
-			}
-		} else {
-			echo '<p>' . esc_html__( '(none — either no attempt ran far enough to make one, or none were made)', 'linkedin-crosspost' ) . '</p>';
-		}
-
-		echo '</div>';
 	}
 }

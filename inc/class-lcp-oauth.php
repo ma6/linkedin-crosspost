@@ -29,7 +29,6 @@ final class LCP_OAuth {
 		add_action( 'admin_post_lcp_oauth_connect', array( __CLASS__, 'handle_connect' ) );
 		add_action( 'admin_post_lcp_oauth_callback', array( __CLASS__, 'handle_callback' ) );
 		add_action( 'admin_post_lcp_oauth_disconnect', array( __CLASS__, 'handle_disconnect' ) );
-		add_action( 'admin_notices', array( __CLASS__, 'expiry_notice' ) );
 	}
 
 	/**
@@ -234,12 +233,15 @@ final class LCP_OAuth {
 
 	/**
 	 * Warn before the token lapses — a silent failure defeats the point of
-	 * "automatic".
+	 * "automatic". Called directly from LCP_Settings::render_connection(),
+	 * not hooked to admin_notices — this plugin's admin_notices output was
+	 * confirmed, by elimination across several diagnostics, to never render
+	 * on onygo.org, while the Settings page's own direct output always has.
 	 *
 	 * @return void
 	 */
-	public static function expiry_notice(): void {
-		if ( ! self::is_connected() || ! current_user_can( 'manage_options' ) ) {
+	public static function render_expiry_warning(): void {
+		if ( ! self::is_connected() ) {
 			return;
 		}
 		$expires = (int) get_option( 'lcp_token_expires', 0 );
@@ -260,10 +262,8 @@ final class LCP_OAuth {
 			);
 
 		printf(
-			'<div class="notice notice-warning"><p>%s <a href="%s">%s</a></p></div>',
-			esc_html( $message ),
-			esc_url( admin_url( 'options-general.php?page=' . LCP_Settings::PAGE ) ),
-			esc_html__( 'Reconnect', 'linkedin-crosspost' )
+			'<p style="color:#d63638;">%s</p>',
+			esc_html( $message )
 		);
 	}
 }

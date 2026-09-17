@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.8
+Stable tag: 0.11.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,8 +49,9 @@ leaves its imported drafts alone.
   Published (immediate or scheduled). Editing an already-published post again
   does not re-post it automatically; "Post to LinkedIn now" in the meta box
   triggers one manually.
-* A failure (not connected, expired token, LinkedIn API error) shows as a
-  notice on that post's edit screen — it does not retry automatically.
+* A failure (not connected, expired token, LinkedIn API error) shows
+  directly inside the "LinkedIn Crosspost" meta box on that post's edit
+  screen — it does not retry automatically.
 * The crosspost is queued about a minute after publishing, not instantly —
   the block editor saves this plugin's meta box in a second request just
   after the publish request itself, so acting immediately would post
@@ -61,6 +62,18 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.11.0 =
+* Confirmed live, with an image: the full flow now works end to end
+  (image upload + post creation both return success from LinkedIn). #5 is
+  closed.
+* Cleanup: removed all the temporary debug tooling (debug log file,
+  execution breadcrumb trail, runtime-version notice, raw HTTP trace
+  notice) that was added while tracking the bug down.
+* Also moved the token-expiry warning off `admin_notices` (confirmed
+  useless on this site, same as the crosspost error notices already fixed
+  in 0.10.7) onto Settings → LinkedIn Connection's own page output, where
+  it's guaranteed to actually be seen.
 
 = 0.10.8 =
 * The debug log showed exactly why an image post failed: the actual file

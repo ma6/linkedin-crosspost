@@ -66,120 +66,73 @@ for what's open and what order they're meant to land in.
 - **Never crosspost inline on `transition_post_status`.** The block editor
   saves a "publish" as two separate requests — a REST call, then a classic
   form resubmit that's what actually writes this meta box's fields for *this*
-  publish (confirmed by testing: an image/text-filled post published live and
-  came through with neither, because `transition_post_status` fires during
-  the first request, before the second one has run). `LCP_Publisher` queues
-  the real work a minute out via wp-cron instead and re-reads everything
-  fresh when it fires — don't "simplify" that back to doing it inline, the
-  bug will come back.
-- **wp-cron isn't trustworthy alone.** A second live test still posted
-  nothing, silently — Site Health showed no cron-specific issue, so the exact
-  cause on onygo.org is still open, but page-load pseudo-cron on a cached
-  site is exactly the kind of thing that fails without ever surfacing an
-  error. `LCP_Metabox` shows whether/when a crosspost is actually queued, and
-  a "Post to LinkedIn now" button (`LCP_Publisher::handle_run_now()`) always
-  works independent of wp-cron — keep both whenever this area changes.
-- **No silent returns in `schedule_crosspost()`/`run_crosspost()`.** A third
-  live test queued nothing and showed no error either, meaning even the
-  scheduling call itself may be getting blocked (a caching/security plugin
-  filtering `pre_schedule_event`, most likely) with nothing to show for it.
-  `wp_schedule_single_event()`'s return is now checked (pass `$wp_error =
-  true` to get the real WP_Error instead of a bare `false`), and every
-  early-return branch in `run_crosspost()` records why — the only exception
-  is "already posted", which isn't a problem. If you add a new early return
-  to either function, record a reason; don't let it go quiet again.
-- **`run_crosspost()` and its callers never read live form state — only the
-  database.** A fourth live test showed why this matters: "Post to LinkedIn
-  now" posted an empty post despite the image/text fields visibly showing
-  filled in, because nothing had triggered an actual editor save between
-  typing and clicking the button, so the DB still held the old (empty)
-  values — the button was never wrong, the assumption that "visibly filled
-  in" means "saved" was. `LCP_Metabox::persist()` now exists so
-  `handle_run_now()` can save the button's own live-synced copy of the
-  fields (see `metabox.js`) right before posting. Any future "do it now"
-  action needs the same treatment — never assume the DB already matches
-  what's on screen.
-- **Never wrap anything in this meta box in a `<form>`.** A fifth live test:
-  once caching was genuinely ruled out, "Post to LinkedIn now" did *nothing*
-  on click — no request at all. It was in its own `<form>`, and this meta
-  box can be rendered inside the block editor's own `<form>` for classic
-  meta-box compatibility; a form nested inside another is invalid HTML, and
-  the browser silently drops the inner one, leaving a `type="submit"`
-  button with nothing to submit to. Fixed by never emitting a `<form>` here
-  at all — the button carries its data as `data-*` attributes, and
-  `metabox.js` builds a standalone `<form>` on click, appended directly to
-  `document.body`. If this box ever needs another button that posts
-  somewhere, follow the same pattern, not a nested form.
-- **Submit a JS-built form with the native `.submit()`, never
-  `$form.trigger('submit')`.** A sixth live test: the standalone-form fix
-  above went right back to doing nothing at all. `trigger('submit')` only
-  fires jQuery's event — the block editor almost certainly has a
-  document-level 'submit' listener guarding against an accidental full-page
-  navigation out of its SPA, and that's exactly the kind of thing that would
-  catch and cancel a triggered event. `$form.get(0).submit()` calls the
-  native DOM method, which by spec doesn't dispatch a 'submit' event at all,
-  so nothing gets a chance to intercept it.
+  publish. `transition_post_status` fires during the first request, before
+  the second one has run, so acting on the meta immediately there would post
+  whatever was saved the *previous* time. `LCP_Publisher::schedule_crosspost()`
+  only queues a wp-cron event a minute out; `run_crosspost()` re-reads
+  everything fresh when it fires. Also covers a wp-cron-triggered scheduled
+  publish for free — the extra minute costs nothing there.
+- **No silent returns in `schedule_crosspost()`/`run_crosspost()`.**
+  `wp_schedule_single_event()`'s return is checked (`$wp_error = true`, so a
+  failure is a real `WP_Error`, not a bare `false`) and recorded as an error
+  if it fails — a caching/security plugin filtering `pre_schedule_event`, or
+  wp-cron disabled outright, are real possibilities on some hosts. Every
+  early-return branch in `run_crosspost()` records why, except "already
+  posted" (not a problem). Add a reason to any new early return.
 - **`run_crosspost()`'s posting attempt runs inside `try { } catch
-  ( \Throwable $e )`.** A seventh live test: the queued job ran (it left the
-  schedule — "Not queued." replaced "Queued to post at…") but recorded
-  neither success nor an error, meaning a PHP error most likely killed
-  execution partway through silently — this runs via wp-cron, unsupervised,
-  no error log visible. `\Throwable` (not just `\Exception`) is deliberate:
-  it also catches PHP's Error hierarchy (TypeError and friends), which is
-  the actual failure class a runtime bug would surface as. Any code added
-  to the posting path (post_to_linkedin(), upload_image()) is covered by
-  this same catch — don't bypass it by calling something risky from outside
-  that try block.
-- **No server-side image cropping.** There was a center-crop step
-  (`square_crop()`, `WP_Image_Editor`) — removed. Martin doesn't want a
-  blind center crop; he wants to choose the crop himself, and would rather
-  do that in the Media Library's own "Edit Image" tool (or a future
-  interactive crop step — see #6) than have this plugin guess. The image is
-  uploaded to LinkedIn exactly as chosen, unmodified. Don't reintroduce
-  automatic cropping without that issue's interactive picker.
+  ( \Throwable $e )`.** This runs unsupervised via wp-cron — a PHP error
+  (not just an exception) anywhere in `post_to_linkedin()`/`upload_image()`
+  would otherwise abort silently, leaving nothing recorded. `\Throwable`
+  (not `\Exception`) catches PHP's Error hierarchy too (TypeError etc.),
+  which is the realistic failure class for a runtime bug. Keep any new code
+  in the posting path inside this same try block.
+- **`handle_run_now()` ("Post to LinkedIn now") saves its own live copy of
+  the meta box fields before posting — never trust the database alone.**
+  `LCP_Metabox::persist()` exists for this; `metabox.js` syncs the current
+  image/text/toggle into the button's own hidden fields right before it
+  submits. Without this, the button posts whatever was last *saved*, not
+  what's currently typed, if nothing triggered a separate save first.
+- **That button's markup must never be wrapped in a `<form>`, and its
+  JS-built form must submit via the native `.submit()`, never
+  `$form.trigger('submit')`.** This meta box can be rendered inside the
+  block editor's own `<form>` for classic meta-box compatibility; a form
+  nested inside another is invalid HTML and the browser silently drops the
+  inner one. The button carries its data as `data-*` attributes;
+  `metabox.js` builds a standalone `<form>` on click, appends it to
+  `document.body`, and calls `$form.get(0).submit()` — jQuery's
+  `trigger('submit')` only fires the JS event, which the block editor's own
+  document-level submit guard (against an accidental SPA navigation) swallows
+  silently.
+- **No server-side image cropping.** Martin doesn't want a blind center
+  crop; he wants to choose the crop himself (e.g. the Media Library's own
+  "Edit Image" tool), or a future interactive crop step (#6). The image
+  uploads to LinkedIn exactly as chosen, unmodified.
 - **Use LinkedIn's `/rest/images` + `/rest/posts` API, never `/v2/assets` +
-  `/v2/ugcPosts`.** #4 was built against the v2 pair from memory, without
-  checking current docs first — text-only posting happened to still work
-  (confirmed live), but image posting silently produced no image and no
-  error. LinkedIn's own docs say outright "The Images API replaces the
-  Assets API" (learn.microsoft.com/en-us/linkedin/marketing/
-  community-management/shares/images-api). The `/rest/*` pair needs a
-  `LinkedIn-Version: YYYYMM` header the v2 pair never did (`API_VERSION`
-  constant — bump it occasionally; LinkedIn sunsets old monikers), and an
-  entirely different request/response shape (flat `content.media.id` with a
-  bare `urn:li:image:...`, not the nested `specificContent.com.linkedin.
-  ugc.ShareContent` structure with `urn:li:digitalmediaAsset:...`). Before
-  touching this file again, re-check that page for what's current — don't
-  assume either version from memory.
-- **This plugin's `admin_notices` output does not render on onygo.org, full
-  stop.** Confirmed by elimination across several diagnostics: an
-  unconditional notice with zero gating (not even a screen check) never
-  appeared, while WP core's own "Post published." notice did, right after —
-  so it isn't notices being suppressed site-wide, and it isn't a stale
-  opcache (a runtime-version notice confirmed the current code is what's
-  executing). The actual cause was never identified and isn't worth
-  chasing further. **Never rely on `admin_notices` for anything this
-  plugin needs Martin to actually see** — surface it inside the "LinkedIn
-  Crosspost" meta box itself instead (confirmed reliable: it's plain
-  `add_meta_box()` output, not a separate hook), or in the plain-text debug
-  log if it's diagnostic rather than user-facing.
-- **LinkedIn's duplicate-content detection is real and will reject
-  near-identical test posts with HTTP 422 "Duplicate post is detected".**
-  Not a bug — LinkedIn compares new post content against the member's
-  recent posts. Don't chase a 422 with that message as if it were another
-  API-shape problem; it means exactly what it says. Use genuinely different
-  text for each live test.
-- **The image upload PUT (to the URL from `/rest/images?action=
-  initializeUpload`) needs an explicit `Content-Type` header set to the
-  file's real mime type.** Confirmed live via the debug log: without it,
-  LinkedIn rejected the PUT with a bare HTTP 400 (an HTML page, not a JSON
-  API error — no useful detail in the body). The older Assets API's own
-  docs show a plain `curl --upload-file` with no Content-Type and that
-  apparently works there, but the newer Images API's upload URL looks
-  structurally different (`dms-uploads/sp/v2/...` vs the old
-  `dms-uploads/{id}/...`) and doesn't behave the same way. Text-only
-  posting (no image) was confirmed working end to end (HTTP 201) via the
-  same debug log before this fix.
+  `/v2/ugcPosts`** (LinkedIn's own docs: "The Images API replaces the Assets
+  API" — learn.microsoft.com/en-us/linkedin/marketing/community-management/
+  shares/images-api). The `/rest/*` pair needs a `LinkedIn-Version: YYYYMM`
+  header (`API_VERSION` constant — bump occasionally; LinkedIn sunsets old
+  monikers) and a flat body shape (`content.media.id` with a bare
+  `urn:li:image:...`), unlike the old pair's nested
+  `specificContent.com.linkedin.ugc.ShareContent` /
+  `urn:li:digitalmediaAsset:...`. The image-upload PUT (to the URL from
+  `initializeUpload`) also needs an explicit `Content-Type` header set to
+  the file's real mime type — without it LinkedIn rejects it with a bare
+  HTTP 400 (an HTML page, no JSON detail). Re-check that docs page before
+  touching this file again; don't assume either version from memory.
+- **`admin_notices` output from this plugin does not render on onygo.org,
+  full stop** — confirmed by elimination (an unconditional notice with zero
+  gating never appeared, while WP core's own "Post published." notice did,
+  ruling out both site-wide notice suppression and a stale opcache). The
+  cause was never identified and isn't worth chasing. **Never rely on
+  `admin_notices` for anything Martin needs to see** — surface it inside the
+  "LinkedIn Crosspost" meta box (`LCP_Metabox::render_status()`) or directly
+  in `LCP_Settings::render()`'s own output instead; both are plain
+  `add_meta_box()`/page-render output, confirmed reliable.
+- **LinkedIn's duplicate-content detection is real** and will reject
+  near-identical test posts with HTTP 422 "Duplicate post is detected" — not
+  a bug, LinkedIn compares against the member's recent posts. Use genuinely
+  different text per live test.
 
 ## Before calling a change done
 
