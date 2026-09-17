@@ -41,6 +41,7 @@ final class LCP_Publisher {
 		add_action( 'admin_post_' . self::RUN_NOW_ACTION, array( __CLASS__, 'handle_run_now' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'error_notice' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'run_now_notice' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'debug_trace_notice' ) );
 	}
 
 	/**
@@ -165,6 +166,31 @@ final class LCP_Publisher {
 			return;
 		}
 
+		// Capture every outbound call to LinkedIn via core's own
+		// http_api_debug hook and store it unconditionally, regardless of
+		// what this code decides happened — repeated live failures showed
+		// neither success nor a recorded error, meaning this plugin's own
+		// success/failure interpretation can't be trusted blind right now.
+		// This bypasses that entirely: raw HTTP code + a body snippet for
+		// every LinkedIn call this attempt made, so what actually happened
+		// is visible even if the logic below is still missing a case.
+		$trace   = array();
+		$capture = static function ( $response, $type, $class, $args, $url ) use ( &$trace ) {
+			if ( ! is_string( $url ) || ! str_contains( $url, 'linkedin.com' ) ) {
+				return;
+			}
+			$trace[] = array(
+				'url'  => $url,
+				'code' => is_wp_error( $response )
+					? 'WP_Error: ' . $response->get_error_message()
+					: (string) wp_remote_retrieve_response_code( $response ),
+				'body' => is_wp_error( $response )
+					? ''
+					: substr( wp_strip_all_tags( (string) wp_remote_retrieve_body( $response ) ), 0, 300 ),
+			);
+		};
+		add_action( 'http_api_debug', $capture, 10, 5 );
+
 		// This runs unsupervised via wp-cron — nobody is watching a PHP
 		// error log. A PHP error anywhere below (post_to_linkedin(),
 		// upload_image(), square_crop()'s WP_Image_Editor calls, ...) would
@@ -177,6 +203,8 @@ final class LCP_Publisher {
 		try {
 			$result = self::post_to_linkedin( $post );
 		} catch ( \Throwable $e ) {
+			remove_action( 'http_api_debug', $capture, 10 );
+			self::record_debug_trace( $post_id, $trace );
 			self::record_error(
 				$post_id,
 				sprintf(
@@ -187,6 +215,8 @@ final class LCP_Publisher {
 			);
 			return;
 		}
+		remove_action( 'http_api_debug', $capture, 10 );
+		self::record_debug_trace( $post_id, $trace );
 
 		if ( is_wp_error( $result ) ) {
 			self::record_error( $post_id, $result->get_error_message() );
@@ -395,6 +425,21 @@ final class LCP_Publisher {
 	}
 
 	/**
+	 * Store the raw HTTP trace of the most recent attempt — every LinkedIn
+	 * call made, its status code, and a body snippet — unconditionally,
+	 * regardless of whether this code thinks it succeeded or failed. A
+	 * temporary diagnostic while tracking down repeated live failures that
+	 * showed neither a success nor a recorded error.
+	 *
+	 * @param int   $post_id Post ID.
+	 * @param array $trace   Rows of ['url' => ..., 'code' => ..., 'body' => ...].
+	 * @return void
+	 */
+	private static function record_debug_trace( int $post_id, array $trace ): void {
+		update_post_meta( $post_id, '_lcp_debug_trace', wp_json_encode( $trace ) );
+	}
+
+	/**
 	 * Show the most recent crosspost failure on that post's edit screen,
 	 * until it's cleared by a successful crosspost.
 	 *
@@ -440,5 +485,45 @@ final class LCP_Publisher {
 			'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
 			esc_html__( 'Posted to LinkedIn.', 'linkedin-crosspost' )
 		);
+	}
+
+	/**
+	 * Show the raw HTTP trace of the most recent crosspost attempt —
+	 * temporary, for tracking down live failures that show neither success
+	 * nor a recorded error. Remove once #5 is confirmed fixed.
+	 *
+	 * @return void
+	 */
+	public static function debug_trace_notice(): void {
+		$screen = get_current_screen();
+		if ( ! $screen || 'post' !== $screen->base ) {
+			return;
+		}
+		$post_id = isset( $_GET['post'] ) ? absint( wp_unslash( $_GET['post'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+		$raw = get_post_meta( $post_id, '_lcp_debug_trace', true );
+		if ( ! $raw ) {
+			return;
+		}
+		$trace = json_decode( (string) $raw, true );
+		if ( ! is_array( $trace ) ) {
+			return;
+		}
+
+		echo '<div class="notice notice-info"><p><strong>' . esc_html__( 'LinkedIn crosspost debug trace (temporary):', 'linkedin-crosspost' ) . '</strong></p>';
+		if ( empty( $trace ) ) {
+			echo '<p>' . esc_html__( 'No calls to linkedin.com were made at all during the last attempt.', 'linkedin-crosspost' ) . '</p>';
+		}
+		foreach ( $trace as $row ) {
+			printf(
+				'<p><code>%s</code><br>%s: %s</p>',
+				esc_html( (string) ( $row['url'] ?? '' ) ),
+				esc_html__( 'Status', 'linkedin-crosspost' ),
+				esc_html( (string) ( $row['code'] ?? '' ) . ' ' . ( $row['body'] ?? '' ) )
+			);
+		}
+		echo '</div>';
 	}
 }

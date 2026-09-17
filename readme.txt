@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.1
+Stable tag: 0.10.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,15 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.10.2 =
+* Temporary diagnostic: the meta box now shows a raw HTTP trace of the last
+  crosspost attempt (every LinkedIn call made, status code, body snippet),
+  unconditionally — regardless of what this plugin's own success/failure
+  logic decides happened. Added because a live post with no image kept
+  showing neither success nor a recorded error even after the 0.10.1 fix,
+  and this plugin's own reporting couldn't be trusted blind any further.
+  Remove once #5 is confirmed fixed.
 
 = 0.10.1 =
 * Fixed: the 0.10.0 API migration used the wrong LinkedIn-Version header —
