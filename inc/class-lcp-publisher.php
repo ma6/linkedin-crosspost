@@ -43,6 +43,11 @@ final class LCP_Publisher {
 	 * way, this is just tidiness). Exists because wp-cron is page-load
 	 * pseudo-cron and can silently never fire on some hosts (see #5).
 	 *
+	 * Also saves the meta box's image/text/toggle from this button's own
+	 * form fields before posting — confirmed live that without this, the
+	 * button posted whatever was last *saved*, not what was currently
+	 * typed, if nothing had triggered an actual save in between.
+	 *
 	 * @return void
 	 */
 	public static function handle_run_now(): void {
@@ -52,10 +57,20 @@ final class LCP_Publisher {
 		}
 		check_admin_referer( self::RUN_NOW_ACTION . '_' . $post_id );
 
+		LCP_Metabox::persist(
+			$post_id,
+			isset( $_POST['lcp_image_id'] ) ? (string) wp_unslash( $_POST['lcp_image_id'] ) : '0',
+			isset( $_POST['lcp_text'] ) ? (string) wp_unslash( $_POST['lcp_text'] ) : '',
+			isset( $_POST['lcp_share_enabled'] ) && '1' === wp_unslash( $_POST['lcp_share_enabled'] )
+		);
+
 		$queued = wp_next_scheduled( self::CRON_HOOK, array( $post_id ) );
 		if ( $queued ) {
 			wp_unschedule_event( $queued, self::CRON_HOOK, array( $post_id ) );
 		}
+
+		// A fresh manual post supersedes any earlier failure.
+		delete_post_meta( $post_id, '_lcp_crosspost_error' );
 
 		self::run_crosspost( $post_id );
 

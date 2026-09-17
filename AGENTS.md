@@ -88,6 +88,17 @@ for what's open and what order they're meant to land in.
   early-return branch in `run_crosspost()` records why — the only exception
   is "already posted", which isn't a problem. If you add a new early return
   to either function, record a reason; don't let it go quiet again.
+- **`run_crosspost()` and its callers never read live form state — only the
+  database.** A fourth live test showed why this matters: "Post to LinkedIn
+  now" posted an empty post despite the image/text fields visibly showing
+  filled in, because nothing had triggered an actual editor save between
+  typing and clicking the button, so the DB still held the old (empty)
+  values — the button was never wrong, the assumption that "visibly filled
+  in" means "saved" was. `LCP_Metabox::persist()` now exists so
+  `handle_run_now()` can save the button's own live-synced copy of the
+  fields (see `metabox.js`'s submit handler on `#lcp-run-now-form`) right
+  before posting. Any future "do it now" action needs the same treatment —
+  never assume the DB already matches what's on screen.
 
 ## Before calling a change done
 

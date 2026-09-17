@@ -109,7 +109,7 @@ final class LCP_Metabox {
 		$preview  = $image_id ? wp_get_attachment_image_url( $image_id, 'medium' ) : '';
 
 		printf(
-			'<p><label><input type="checkbox" name="lcp_share_enabled" value="1" %s> %s</label></p>',
+			'<p><label><input type="checkbox" name="lcp_share_enabled" id="lcp-share-enabled" value="1" %s> %s</label></p>',
 			checked( $enabled, true, false ),
 			esc_html__( 'Share on LinkedIn when this post is published', 'linkedin-crosspost' )
 		);
@@ -142,7 +142,7 @@ final class LCP_Metabox {
 
 		echo '<p><strong>' . esc_html__( 'Short text', 'linkedin-crosspost' ) . '</strong></p>';
 		printf(
-			'<textarea name="lcp_text" rows="6" class="large-text" maxlength="%d" placeholder="%s">%s</textarea>',
+			'<textarea name="lcp_text" id="lcp-text" rows="6" class="large-text" maxlength="%d" placeholder="%s">%s</textarea>',
 			(int) self::TEXT_LIMIT,
 			esc_attr__( "What you'd post on LinkedIn about this…", 'linkedin-crosspost' ),
 			esc_textarea( $text )
@@ -197,16 +197,26 @@ final class LCP_Metabox {
 			echo '<p class="description">' . esc_html__( 'Not queued.', 'linkedin-crosspost' ) . '</p>';
 		}
 
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		// A self-contained form carrying its own copies of the image/text/
+		// toggle values (synced from the live fields by metabox.js right
+		// before submit — see there for why). Confirmed live: without this,
+		// "Post to LinkedIn now" posted whatever was last *saved*, not what
+		// was currently typed, because nothing had triggered an actual save
+		// in between — this button now saves exactly what's in the box
+		// itself, so it never depends on a separate save having happened.
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" id="lcp-run-now-form">';
 		wp_nonce_field( LCP_Publisher::RUN_NOW_ACTION . '_' . $post->ID );
 		printf( '<input type="hidden" name="action" value="%s">', esc_attr( LCP_Publisher::RUN_NOW_ACTION ) );
 		printf( '<input type="hidden" name="post_id" value="%d">', $post->ID );
+		echo '<input type="hidden" name="lcp_image_id" id="lcp-run-now-image-id" value="">';
+		echo '<input type="hidden" name="lcp_text" id="lcp-run-now-text" value="">';
+		echo '<input type="hidden" name="lcp_share_enabled" id="lcp-run-now-share-enabled" value="1">';
 		submit_button( __( 'Post to LinkedIn now', 'linkedin-crosspost' ), 'secondary', 'submit', false );
 		echo '</form>';
 	}
 
 	/**
-	 * Save the three fields.
+	 * Save the three fields from the editor's own save request.
 	 *
 	 * @param int $post_id Post ID.
 	 * @return void
@@ -224,16 +234,38 @@ final class LCP_Metabox {
 			return;
 		}
 
-		$image_id = isset( $_POST['lcp_image_id'] ) ? absint( wp_unslash( $_POST['lcp_image_id'] ) ) : 0;
+		self::persist(
+			$post_id,
+			isset( $_POST['lcp_image_id'] ) ? (string) wp_unslash( $_POST['lcp_image_id'] ) : '0',
+			isset( $_POST['lcp_text'] ) ? (string) wp_unslash( $_POST['lcp_text'] ) : '',
+			isset( $_POST['lcp_share_enabled'] ) // A real checkbox: present only when checked.
+		);
+	}
+
+	/**
+	 * Sanitize and store the three fields. Shared by save() (the editor's
+	 * own save, where the checkbox's mere presence means "checked") and
+	 * LCP_Publisher::handle_run_now() (whose own copies of these fields —
+	 * synced live by metabox.js right before submit — carry an explicit
+	 * '1'/'0' instead, since it isn't a real checkbox).
+	 *
+	 * @param int    $post_id       Post ID.
+	 * @param string $image_id_raw  Raw attachment ID.
+	 * @param string $text_raw      Raw short-text value.
+	 * @param bool   $share_enabled Whether sharing is on.
+	 * @return void
+	 */
+	public static function persist( int $post_id, string $image_id_raw, string $text_raw, bool $share_enabled ): void {
+		$image_id = absint( $image_id_raw );
 		if ( $image_id > 0 ) {
 			update_post_meta( $post_id, '_lcp_image_id', $image_id );
 		} else {
 			delete_post_meta( $post_id, '_lcp_image_id' );
 		}
 
-		$text = isset( $_POST['lcp_text'] ) ? sanitize_textarea_field( wp_unslash( $_POST['lcp_text'] ) ) : '';
+		$text = sanitize_textarea_field( $text_raw );
 		update_post_meta( $post_id, '_lcp_text', mb_substr( $text, 0, self::TEXT_LIMIT ) );
 
-		update_post_meta( $post_id, '_lcp_share_enabled', isset( $_POST['lcp_share_enabled'] ) ? 1 : 0 );
+		update_post_meta( $post_id, '_lcp_share_enabled', $share_enabled ? 1 : 0 );
 	}
 }

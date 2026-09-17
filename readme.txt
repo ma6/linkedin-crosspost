@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.7.1
+Stable tag: 0.8.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,14 @@ leaves its imported drafts alone.
   a non-square image is kept.
 
 == Changelog ==
+
+= 0.8.0 =
+* Fixed: "Post to LinkedIn now" could post an empty post (just the link)
+  despite the image/text fields showing filled in — it was posting whatever
+  was last *saved* to the database, not what was currently typed, and
+  nothing had triggered an actual save in between. The button now saves its
+  own live copy of the image/text/toggle right before posting, so it always
+  posts exactly what's in the box at the moment you click it.
 
 = 0.7.1 =
 * Fixed: the crosspost status in the meta box (queued/not queued/posted)
