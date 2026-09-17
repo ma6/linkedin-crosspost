@@ -114,10 +114,10 @@ final class LCP_Metabox {
 			esc_html__( 'Share on LinkedIn when this post is published', 'linkedin-crosspost' )
 		);
 
-		echo '<p><strong>' . esc_html__( 'Image (square)', 'linkedin-crosspost' ) . '</strong></p>';
+		echo '<p><strong>' . esc_html__( 'Image', 'linkedin-crosspost' ) . '</strong></p>';
 		echo '<div class="lcp-image-picker">';
 		printf(
-			'<img id="lcp-image-preview" src="%s" style="max-width:100%%;height:auto;margin-bottom:6px;%s" alt="">',
+			'<img id="lcp-image-preview" src="%s" style="width:200px;height:200px;object-fit:cover;display:block;margin-bottom:6px;border:1px solid #444;%s" alt="">',
 			esc_url( (string) $preview ),
 			$preview ? '' : 'display:none;'
 		);
@@ -132,7 +132,9 @@ final class LCP_Metabox {
 			$image_id ? '' : 'display:none;',
 			esc_html__( 'Remove', 'linkedin-crosspost' )
 		);
-		echo '</p></div>';
+		echo '</p>';
+		echo '<p class="description">' . esc_html__( "Any size or shape — it's center-cropped to a square automatically when posted. The preview above shows roughly what survives that crop.", 'linkedin-crosspost' ) . '</p>';
+		echo '</div>';
 
 		echo '<p><strong>' . esc_html__( 'Short text', 'linkedin-crosspost' ) . '</strong></p>';
 		printf(

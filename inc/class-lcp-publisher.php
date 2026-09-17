@@ -19,6 +19,8 @@ final class LCP_Publisher {
 	const REGISTER_UPLOAD_URL = 'https://api.linkedin.com/v2/assets?action=registerUpload';
 	const UGC_POSTS_URL       = 'https://api.linkedin.com/v2/ugcPosts';
 	const RECIPE_FEEDSHARE    = 'urn:li:digitalmediaRecipe:feedshare-image';
+	const CRON_HOOK           = 'lcp_crosspost_event';
+	const DELAY               = MINUTE_IN_SECONDS;
 
 	/**
 	 * Hook registration.
@@ -26,47 +28,81 @@ final class LCP_Publisher {
 	 * @return void
 	 */
 	public static function init(): void {
-		add_action( 'transition_post_status', array( __CLASS__, 'maybe_crosspost' ), 10, 3 );
+		add_action( 'transition_post_status', array( __CLASS__, 'schedule_crosspost' ), 10, 3 );
+		add_action( self::CRON_HOOK, array( __CLASS__, 'run_crosspost' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'error_notice' ) );
 	}
 
 	/**
-	 * React to a status change. Fires for both an immediate publish and a
-	 * scheduled one — WordPress calls this exactly when the status actually
-	 * becomes `publish`, whether that happened right now or via wp-cron's
-	 * scheduled publish, so no separate scheduling path is needed here.
+	 * React to a status change by queuing the actual crosspost a minute out
+	 * — never doing it inline here.
+	 *
+	 * The block editor saves a "publish" in two separate requests: a REST
+	 * call first, then (because this plugin's meta box predates the
+	 * block-editor meta APIs) a second classic form submission that's what
+	 * actually writes _lcp_image_id/_lcp_text for *this* publish. This hook
+	 * fires during the first request, before that second one has happened —
+	 * acting on the meta immediately here would crosspost whatever was saved
+	 * the *previous* time, not what's in the box right now. Queuing a
+	 * one-off wp-cron event and reading the meta fresh when it fires sidesteps
+	 * the exact request-ordering rather than depending on it. This also
+	 * covers a wp-cron-triggered scheduled publish just as well — the delay
+	 * only adds a minute, and that meta was never in question there.
 	 *
 	 * @param string  $new_status New post status.
 	 * @param string  $old_status Previous post status.
 	 * @param WP_Post $post       The post.
 	 * @return void
 	 */
-	public static function maybe_crosspost( string $new_status, string $old_status, WP_Post $post ): void {
+	public static function schedule_crosspost( string $new_status, string $old_status, WP_Post $post ): void {
 		if ( 'publish' !== $new_status || 'publish' === $old_status ) {
 			return;
 		}
 		if ( LCP_Metabox::POST_TYPE !== $post->post_type ) {
 			return;
 		}
-		if ( ! LCP_Metabox::share_enabled( $post->ID ) ) {
-			return;
-		}
 		if ( get_post_meta( $post->ID, '_lcp_linkedin_urn', true ) ) {
 			return; // Already crossposted — never double-post on a republish.
 		}
+		if ( wp_next_scheduled( self::CRON_HOOK, array( $post->ID ) ) ) {
+			return; // Already queued.
+		}
+
+		wp_schedule_single_event( time() + self::DELAY, self::CRON_HOOK, array( $post->ID ) );
+	}
+
+	/**
+	 * The actual crosspost, run a minute after the publish transition —
+	 * re-checks everything fresh, since state (the toggle, the connection,
+	 * whether it's still published) may have changed in that minute.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	public static function run_crosspost( int $post_id ): void {
+		$post = get_post( $post_id );
+		if ( ! $post || 'publish' !== $post->post_status ) {
+			return;
+		}
+		if ( ! LCP_Metabox::share_enabled( $post_id ) ) {
+			return;
+		}
+		if ( get_post_meta( $post_id, '_lcp_linkedin_urn', true ) ) {
+			return;
+		}
 		if ( ! LCP_OAuth::is_connected() ) {
-			self::record_error( $post->ID, __( 'LinkedIn is not connected.', 'linkedin-crosspost' ) );
+			self::record_error( $post_id, __( 'LinkedIn is not connected.', 'linkedin-crosspost' ) );
 			return;
 		}
 
 		$result = self::post_to_linkedin( $post );
 		if ( is_wp_error( $result ) ) {
-			self::record_error( $post->ID, $result->get_error_message() );
+			self::record_error( $post_id, $result->get_error_message() );
 			return;
 		}
 
-		update_post_meta( $post->ID, '_lcp_linkedin_urn', $result );
-		delete_post_meta( $post->ID, '_lcp_crosspost_error' );
+		update_post_meta( $post_id, '_lcp_linkedin_urn', $result );
+		delete_post_meta( $post_id, '_lcp_crosspost_error' );
 	}
 
 	/**
@@ -155,8 +191,9 @@ final class LCP_Publisher {
 	}
 
 	/**
-	 * Register + upload the crosspost image as a LinkedIn digital media
-	 * asset, for use as a UGC post's `media` entry.
+	 * Register + upload the crosspost image — center-cropped to a square
+	 * first, since LinkedIn expects a square feedshare image and the source
+	 * can be any aspect ratio — as a LinkedIn digital media asset.
 	 *
 	 * @param string $access_token Bearer token.
 	 * @param string $author_urn   `urn:li:person:{id}`.
@@ -167,6 +204,11 @@ final class LCP_Publisher {
 		$path = get_attached_file( $image_id );
 		if ( ! $path || ! file_exists( $path ) ) {
 			return new WP_Error( 'lcp_image_missing', __( 'The crosspost image file could not be found on disk.', 'linkedin-crosspost' ) );
+		}
+
+		$square = self::square_crop( $path );
+		if ( is_wp_error( $square ) ) {
+			return $square;
 		}
 
 		$register = wp_remote_post(
@@ -195,6 +237,9 @@ final class LCP_Publisher {
 		);
 
 		if ( is_wp_error( $register ) ) {
+			if ( $square !== $path ) {
+				wp_delete_file( $square );
+			}
 			return $register;
 		}
 
@@ -203,10 +248,16 @@ final class LCP_Publisher {
 		$asset_urn  = $reg_body['value']['asset'] ?? null;
 
 		if ( ! is_string( $upload_url ) || ! is_string( $asset_urn ) ) {
+			if ( $square !== $path ) {
+				wp_delete_file( $square );
+			}
 			return new WP_Error( 'lcp_register_failed', __( 'LinkedIn did not return an upload URL for the image.', 'linkedin-crosspost' ) );
 		}
 
-		$bytes = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$bytes = file_get_contents( $square ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( $square !== $path ) {
+			wp_delete_file( $square );
+		}
 		if ( false === $bytes ) {
 			return new WP_Error( 'lcp_image_read_failed', __( 'The crosspost image could not be read.', 'linkedin-crosspost' ) );
 		}
@@ -240,6 +291,50 @@ final class LCP_Publisher {
 		}
 
 		return $asset_urn;
+	}
+
+	/**
+	 * Center-crop an image to a square, saved to a temp file. The source
+	 * attachment is left untouched; only this temp copy is uploaded to
+	 * LinkedIn.
+	 *
+	 * @param string $path Source image path.
+	 * @return string|WP_Error Path to a square file — the temp crop, or the
+	 *                         original $path if it was already square — or
+	 *                         an error.
+	 */
+	private static function square_crop( string $path ) {
+		$editor = wp_get_image_editor( $path );
+		if ( is_wp_error( $editor ) ) {
+			return $editor;
+		}
+
+		$size = $editor->get_size();
+		if ( ! $size || $size['width'] === $size['height'] ) {
+			return $path;
+		}
+
+		$side = min( $size['width'], $size['height'] );
+		$x    = (int) ( ( $size['width'] - $side ) / 2 );
+		$y    = (int) ( ( $size['height'] - $side ) / 2 );
+
+		$cropped = $editor->crop( $x, $y, $side, $side );
+		if ( is_wp_error( $cropped ) ) {
+			return $cropped;
+		}
+
+		$ext      = pathinfo( $path, PATHINFO_EXTENSION );
+		$filetype = wp_check_filetype( $path );
+		$mime     = ! empty( $filetype['type'] ) ? $filetype['type'] : 'image/jpeg';
+
+		$tmp = wp_tempnam( 'lcp-square.' . ( $ext ?: 'jpg' ) );
+
+		$saved = $editor->save( $tmp, $mime );
+		if ( is_wp_error( $saved ) ) {
+			return $saved;
+		}
+
+		return (string) $saved['path'];
 	}
 
 	/**

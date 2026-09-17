@@ -25,10 +25,10 @@ imports LinkedIn shares into WordPress; this one goes the other direction.
 ## What it is
 
 When you publish a post and haven't opted out, it posts to your **personal**
-LinkedIn profile via the LinkedIn API: the square image and short text you
-wrote for that post in the editor, plus a link back to it. It does not
-generate the image or the text — you write those yourself, the same way you
-already do by hand.
+LinkedIn profile via the LinkedIn API about a minute later: the image
+(center-cropped to a square automatically) and short text you wrote for that
+post in the editor, plus a link back to it. It does not generate the image
+or the text — you write those yourself, the same way you already do by hand.
 
 ## Shape
 
@@ -37,7 +37,7 @@ linkedin-crosspost.php      bootstrap: constants, requires, plugins_loaded
 inc/class-lcp-settings.php    Settings → LinkedIn Connection: app credentials, connection status  [done, #2]
 inc/class-lcp-oauth.php       3-legged OAuth (w_member_social + openid), token storage, expiry warning  [done, #2]
 inc/class-lcp-metabox.php     editor meta box: square image, short text, "Share on LinkedIn" toggle  [done, #3]
-inc/class-lcp-publisher.php   transition_post_status → publish hook: registerUpload + create the UGC post  [done, #4]
+inc/class-lcp-publisher.php   transition_post_status queues a 1-minute-out wp-cron job: square-crop + registerUpload + create the UGC post  [done, #4]
 ```
 
 Each file lands against its own issue — check `gh issue list` in this repo
@@ -63,6 +63,15 @@ for what's open and what order they're meant to land in.
   `linkedin-shares`.
 - **Escaping at every boundary**, **capabilities + nonces** on every
   settings/meta write — same standard as `linkedin-shares`.
+- **Never crosspost inline on `transition_post_status`.** The block editor
+  saves a "publish" as two separate requests — a REST call, then a classic
+  form resubmit that's what actually writes this meta box's fields for *this*
+  publish (confirmed by testing: an image/text-filled post published live and
+  came through with neither, because `transition_post_status` fires during
+  the first request, before the second one has run). `LCP_Publisher` queues
+  the real work a minute out via wp-cron instead and re-reads everything
+  fresh when it fires — don't "simplify" that back to doing it inline, the
+  bug will come back.
 
 ## Before calling a change done
 

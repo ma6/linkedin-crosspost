@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -11,10 +11,12 @@ Publish a LinkedIn post automatically when a blog post goes live.
 
 == Description ==
 
-Cross-posts a blog post to your personal LinkedIn profile the moment you
-publish it: the square image and short text you wrote for it in the editor's
-meta box, plus a link back to the post. Nothing is generated for you — same
-content you'd post by hand, just posted automatically instead.
+Cross-posts a blog post to your personal LinkedIn profile about a minute
+after you publish it: the image and short text you wrote for it in the
+editor's meta box (the image is center-cropped to a square automatically —
+pick any source image), plus a link back to the post. Nothing is generated
+for you — same content you'd post by hand, just posted automatically
+instead.
 
 * **Opt-out, not opt-in.** "Share on LinkedIn" defaults on for every post;
   switch it off before publishing to skip one.
@@ -49,8 +51,24 @@ leaves its imported drafts alone.
   does not re-post it; there is no manual "post again" button.
 * A failure (not connected, expired token, LinkedIn API error) shows as a
   notice on that post's edit screen — it does not retry automatically.
+* The crosspost is queued about a minute after publishing, not instantly —
+  the block editor saves this plugin's meta box in a second request just
+  after the publish request itself, so acting immediately would post
+  whatever the box held the *previous* time, not what's in it now. The delay
+  also relies on wp-cron actually running, same as a scheduled publish does.
+* The square crop is always centered; there's no way to choose which part of
+  a non-square image is kept.
 
 == Changelog ==
+
+= 0.5.0 =
+* Fixed: publishing from the block editor could crosspost with an empty
+  image/text, because the meta box's second save request lands after the
+  publish transition fires. The crosspost is now queued a minute out via
+  wp-cron instead of running inline, so it always reads the meta that was
+  actually saved for this publish.
+* The crosspost image is now center-cropped to a square automatically before
+  upload (any source aspect ratio); the meta box preview shows the crop.
 
 = 0.4.0 =
 * Publishing a post (immediate or scheduled, with the toggle on and LinkedIn
