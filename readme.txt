@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 1.0.0
+Stable tag: 0.10.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,7 +62,7 @@ leaves its imported drafts alone.
 
 == Changelog ==
 
-= 1.0.0 =
+= 0.10.0 =
 * Found the actual reason images never posted, with no error: this plugin
   was built against LinkedIn's older /v2/assets + /v2/ugcPosts API, which
   LinkedIn's own docs say is replaced by /rest/images + /rest/posts — text
