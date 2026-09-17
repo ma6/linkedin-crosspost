@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.7.0
+Stable tag: 0.7.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,13 @@ leaves its imported drafts alone.
   a non-square image is kept.
 
 == Changelog ==
+
+= 0.7.1 =
+* Fixed: the crosspost status in the meta box (queued/not queued/posted)
+  could show nothing at all, even on a published post, because it was gated
+  on the post_status the block editor's meta-box-compat rendering passed in
+  — which can lag the real status by one render. The status display no
+  longer depends on it.
 
 = 0.7.0 =
 * A third live test on onygo.org still queued nothing, with no error notice

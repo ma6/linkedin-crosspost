@@ -160,9 +160,17 @@ final class LCP_Metabox {
 	}
 
 	/**
-	 * Crosspost status: already posted, queued for a specific time, not
-	 * queued at all, or nothing (not published yet, nothing to show). A
-	 * "Post to LinkedIn now" button bypasses the wp-cron wait — see #5.
+	 * Crosspost status: already posted, queued for a specific time, or not
+	 * queued. A "Post to LinkedIn now" button bypasses the wp-cron wait —
+	 * see #5.
+	 *
+	 * Deliberately does *not* gate this on $post->post_status: the WP_Post
+	 * this callback receives can lag the real status by one render in the
+	 * block editor's meta-box-compat pipeline (confirmed live — the sidebar
+	 * said "Published" while this showed nothing, because the post_status
+	 * check below was silently returning). Always show the status; a draft
+	 * legitimately reads "Not queued." until it's actually published, and
+	 * the button click re-fetches everything fresh anyway.
 	 *
 	 * @param WP_Post $post Current post.
 	 * @return void
@@ -170,9 +178,6 @@ final class LCP_Metabox {
 	private static function render_status( WP_Post $post ): void {
 		if ( get_post_meta( $post->ID, '_lcp_linkedin_urn', true ) ) {
 			echo '<p>' . esc_html__( 'Posted to LinkedIn.', 'linkedin-crosspost' ) . '</p>';
-			return;
-		}
-		if ( 'publish' !== $post->post_status ) {
 			return;
 		}
 
