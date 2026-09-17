@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.9.0
+Stable tag: 0.9.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -13,10 +13,9 @@ Publish a LinkedIn post automatically when a blog post goes live.
 
 Cross-posts a blog post to your personal LinkedIn profile about a minute
 after you publish it: the image and short text you wrote for it in the
-editor's meta box (the image is center-cropped to a square automatically —
-pick any source image), plus a link back to the post. Nothing is generated
-for you — same content you'd post by hand, just posted automatically
-instead.
+editor's meta box, exactly as chosen — nothing is cropped or otherwise
+altered — plus a link back to the post. Nothing is generated for you —
+same content you'd post by hand, just posted automatically instead.
 
 * **Opt-out, not opt-in.** "Share on LinkedIn" defaults on for every post;
   switch it off before publishing to skip one.
@@ -48,7 +47,8 @@ leaves its imported drafts alone.
 * Posts to a personal profile only — no organization page support.
 * A crosspost happens once per post, the first time it transitions to
   Published (immediate or scheduled). Editing an already-published post again
-  does not re-post it; there is no manual "post again" button.
+  does not re-post it automatically; "Post to LinkedIn now" in the meta box
+  triggers one manually.
 * A failure (not connected, expired token, LinkedIn API error) shows as a
   notice on that post's edit screen — it does not retry automatically.
 * The crosspost is queued about a minute after publishing, not instantly —
@@ -56,10 +56,20 @@ leaves its imported drafts alone.
   after the publish request itself, so acting immediately would post
   whatever the box held the *previous* time, not what's in it now. The delay
   also relies on wp-cron actually running, same as a scheduled publish does.
-* The square crop is always centered; there's no way to choose which part of
-  a non-square image is kept.
+* The image is uploaded exactly as chosen — no cropping. Pick (or prepare,
+  e.g. via the Media Library's own "Edit Image" tool) a square image
+  yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.9.1 =
+* Removed the automatic center-crop. Martin wants to choose the crop
+  himself (e.g. via the Media Library's own "Edit Image" tool) rather than
+  have this plugin blindly center-crop — and it also removed one whole
+  class of PHP errors (WP_Image_Editor) from the posting path while the
+  real cause of the silent-failure bug (#5) was still being tracked down.
+  An interactive crop step is tracked separately as #6. The image now
+  uploads to LinkedIn byte-for-byte as chosen.
 
 = 0.9.0 =
 * A queued crosspost that had a PHP error partway through (anywhere in the

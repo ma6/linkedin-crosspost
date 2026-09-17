@@ -26,7 +26,7 @@ imports LinkedIn shares into WordPress; this one goes the other direction.
 
 When you publish a post and haven't opted out, it posts to your **personal**
 LinkedIn profile via the LinkedIn API about a minute later: the image
-(center-cropped to a square automatically) and short text you wrote for that
+and short text you wrote for that
 post in the editor, plus a link back to it. It does not generate the image
 or the text — you write those yourself, the same way you already do by hand.
 
@@ -36,8 +36,8 @@ or the text — you write those yourself, the same way you already do by hand.
 linkedin-crosspost.php      bootstrap: constants, requires, plugins_loaded
 inc/class-lcp-settings.php    Settings → LinkedIn Connection: app credentials, connection status  [done, #2]
 inc/class-lcp-oauth.php       3-legged OAuth (w_member_social + openid), token storage, expiry warning  [done, #2]
-inc/class-lcp-metabox.php     editor meta box: square image, short text, "Share on LinkedIn" toggle  [done, #3]
-inc/class-lcp-publisher.php   transition_post_status queues a 1-minute-out wp-cron job: square-crop + registerUpload + create the UGC post  [done, #4]
+inc/class-lcp-metabox.php     editor meta box: image, short text, "Share on LinkedIn" toggle  [done, #3]
+inc/class-lcp-publisher.php   transition_post_status queues a 1-minute-out wp-cron job: registerUpload + create the UGC post  [done, #4]
 ```
 
 Each file lands against its own issue — check `gh issue list` in this repo
@@ -127,9 +127,16 @@ for what's open and what order they're meant to land in.
   no error log visible. `\Throwable` (not just `\Exception`) is deliberate:
   it also catches PHP's Error hierarchy (TypeError and friends), which is
   the actual failure class a runtime bug would surface as. Any code added
-  to the posting path (post_to_linkedin(), upload_image(), square_crop())
-  is covered by this same catch — don't bypass it by calling something
-  risky from outside that try block.
+  to the posting path (post_to_linkedin(), upload_image()) is covered by
+  this same catch — don't bypass it by calling something risky from outside
+  that try block.
+- **No server-side image cropping.** There was a center-crop step
+  (`square_crop()`, `WP_Image_Editor`) — removed. Martin doesn't want a
+  blind center crop; he wants to choose the crop himself, and would rather
+  do that in the Media Library's own "Edit Image" tool (or a future
+  interactive crop step — see #6) than have this plugin guess. The image is
+  uploaded to LinkedIn exactly as chosen, unmodified. Don't reintroduce
+  automatic cropping without that issue's interactive picker.
 
 ## Before calling a change done
 

@@ -137,7 +137,7 @@ final class LCP_Metabox {
 			esc_html__( 'Remove', 'linkedin-crosspost' )
 		);
 		echo '</p>';
-		echo '<p class="description">' . esc_html__( "Any size or shape — it's center-cropped to a square automatically when posted. The preview above shows roughly what survives that crop.", 'linkedin-crosspost' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Posted exactly as chosen — nothing is cropped for you. Pick a square image yourself for the best result on LinkedIn; the preview above is a square crop of whatever you choose, just to help you judge that, not a preview of what gets sent.', 'linkedin-crosspost' ) . '</p>';
 		echo '</div>';
 
 		echo '<p><strong>' . esc_html__( 'Short text', 'linkedin-crosspost' ) . '</strong></p>';

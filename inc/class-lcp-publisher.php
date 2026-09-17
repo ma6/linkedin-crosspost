@@ -276,9 +276,10 @@ final class LCP_Publisher {
 	}
 
 	/**
-	 * Register + upload the crosspost image — center-cropped to a square
-	 * first, since LinkedIn expects a square feedshare image and the source
-	 * can be any aspect ratio — as a LinkedIn digital media asset.
+	 * Register + upload the crosspost image, exactly as chosen — no
+	 * cropping. Martin picks the image himself (see AGENTS.md
+	 * non-negotiables); LinkedIn will letterbox/crop a non-square image on
+	 * its own end for display, same as any other non-square LinkedIn post.
 	 *
 	 * @param string $access_token Bearer token.
 	 * @param string $author_urn   `urn:li:person:{id}`.
@@ -289,11 +290,6 @@ final class LCP_Publisher {
 		$path = get_attached_file( $image_id );
 		if ( ! $path || ! file_exists( $path ) ) {
 			return new WP_Error( 'lcp_image_missing', __( 'The crosspost image file could not be found on disk.', 'linkedin-crosspost' ) );
-		}
-
-		$square = self::square_crop( $path );
-		if ( is_wp_error( $square ) ) {
-			return $square;
 		}
 
 		$register = wp_remote_post(
@@ -322,9 +318,6 @@ final class LCP_Publisher {
 		);
 
 		if ( is_wp_error( $register ) ) {
-			if ( $square !== $path ) {
-				wp_delete_file( $square );
-			}
 			return $register;
 		}
 
@@ -333,16 +326,10 @@ final class LCP_Publisher {
 		$asset_urn  = $reg_body['value']['asset'] ?? null;
 
 		if ( ! is_string( $upload_url ) || ! is_string( $asset_urn ) ) {
-			if ( $square !== $path ) {
-				wp_delete_file( $square );
-			}
 			return new WP_Error( 'lcp_register_failed', __( 'LinkedIn did not return an upload URL for the image.', 'linkedin-crosspost' ) );
 		}
 
-		$bytes = file_get_contents( $square ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		if ( $square !== $path ) {
-			wp_delete_file( $square );
-		}
+		$bytes = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 		if ( false === $bytes ) {
 			return new WP_Error( 'lcp_image_read_failed', __( 'The crosspost image could not be read.', 'linkedin-crosspost' ) );
 		}
@@ -376,50 +363,6 @@ final class LCP_Publisher {
 		}
 
 		return $asset_urn;
-	}
-
-	/**
-	 * Center-crop an image to a square, saved to a temp file. The source
-	 * attachment is left untouched; only this temp copy is uploaded to
-	 * LinkedIn.
-	 *
-	 * @param string $path Source image path.
-	 * @return string|WP_Error Path to a square file — the temp crop, or the
-	 *                         original $path if it was already square — or
-	 *                         an error.
-	 */
-	private static function square_crop( string $path ) {
-		$editor = wp_get_image_editor( $path );
-		if ( is_wp_error( $editor ) ) {
-			return $editor;
-		}
-
-		$size = $editor->get_size();
-		if ( ! $size || $size['width'] === $size['height'] ) {
-			return $path;
-		}
-
-		$side = min( $size['width'], $size['height'] );
-		$x    = (int) ( ( $size['width'] - $side ) / 2 );
-		$y    = (int) ( ( $size['height'] - $side ) / 2 );
-
-		$cropped = $editor->crop( $x, $y, $side, $side );
-		if ( is_wp_error( $cropped ) ) {
-			return $cropped;
-		}
-
-		$ext      = pathinfo( $path, PATHINFO_EXTENSION );
-		$filetype = wp_check_filetype( $path );
-		$mime     = ! empty( $filetype['type'] ) ? $filetype['type'] : 'image/jpeg';
-
-		$tmp = wp_tempnam( 'lcp-square.' . ( $ext ?: 'jpg' ) );
-
-		$saved = $editor->save( $tmp, $mime );
-		if ( is_wp_error( $saved ) ) {
-			return $saved;
-		}
-
-		return (string) $saved['path'];
 	}
 
 	/**

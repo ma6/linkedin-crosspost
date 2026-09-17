@@ -3,11 +3,12 @@
 A WordPress plugin that publishes a LinkedIn post automatically when one of
 your blog posts goes live.
 
-It uses the square image and short text you write for that post in the
-editor's meta box, plus a link back to the post, and publishes it to your
-personal LinkedIn profile via the LinkedIn API. It doesn't generate the image
-or the text for you — same content you'd post by hand, just posted for you.
-The "Share on LinkedIn" toggle defaults on; switch it off per-post to opt out.
+It uses the image and short text you write for that post in the editor's
+meta box, plus a link back to the post, and publishes it to your personal
+LinkedIn profile via the LinkedIn API. It doesn't generate or crop the image,
+and doesn't generate the text either — same content you'd post by hand, just
+posted for you. The "Share on LinkedIn" toggle defaults on; switch it off
+per-post to opt out.
 
 This is the sibling of [`linkedin-shares`](https://github.com/ma6/linkedin-shares),
 which imports LinkedIn's data export the other direction.
