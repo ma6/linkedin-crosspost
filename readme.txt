@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.5.0
+Stable tag: 0.6.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,12 @@ leaves its imported drafts alone.
   a non-square image is kept.
 
 == Changelog ==
+
+= 0.6.0 =
+* The meta box now shows crosspost status on a published post: already
+  posted, queued for a specific time, or not queued — and a "Post to
+  LinkedIn now" button that runs it immediately instead of waiting on
+  wp-cron. Also doubles as the retry that a failed crosspost didn't have.
 
 = 0.5.0 =
 * Fixed: publishing from the block editor could crosspost with an empty

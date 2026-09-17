@@ -21,6 +21,7 @@ final class LCP_Publisher {
 	const RECIPE_FEEDSHARE    = 'urn:li:digitalmediaRecipe:feedshare-image';
 	const CRON_HOOK           = 'lcp_crosspost_event';
 	const DELAY               = MINUTE_IN_SECONDS;
+	const RUN_NOW_ACTION      = 'lcp_run_now';
 
 	/**
 	 * Hook registration.
@@ -30,7 +31,38 @@ final class LCP_Publisher {
 	public static function init(): void {
 		add_action( 'transition_post_status', array( __CLASS__, 'schedule_crosspost' ), 10, 3 );
 		add_action( self::CRON_HOOK, array( __CLASS__, 'run_crosspost' ) );
+		add_action( 'admin_post_' . self::RUN_NOW_ACTION, array( __CLASS__, 'handle_run_now' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'error_notice' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'run_now_notice' ) );
+	}
+
+	/**
+	 * "Post to LinkedIn now" button handler — runs the crosspost immediately
+	 * instead of waiting on the queued wp-cron event, and cancels that event
+	 * so it doesn't also fire later (run_crosspost() is idempotent either
+	 * way, this is just tidiness). Exists because wp-cron is page-load
+	 * pseudo-cron and can silently never fire on some hosts (see #5).
+	 *
+	 * @return void
+	 */
+	public static function handle_run_now(): void {
+		$post_id = isset( $_POST['post_id'] ) ? absint( wp_unslash( $_POST['post_id'] ) ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_die( esc_html__( 'You are not allowed to do that.', 'linkedin-crosspost' ) );
+		}
+		check_admin_referer( self::RUN_NOW_ACTION . '_' . $post_id );
+
+		$queued = wp_next_scheduled( self::CRON_HOOK, array( $post_id ) );
+		if ( $queued ) {
+			wp_unschedule_event( $queued, self::CRON_HOOK, array( $post_id ) );
+		}
+
+		self::run_crosspost( $post_id );
+
+		$status    = get_post_meta( $post_id, '_lcp_linkedin_urn', true ) ? 'posted' : 'failed';
+		$edit_url  = admin_url( 'post.php?post=' . $post_id . '&action=edit' );
+		wp_safe_redirect( add_query_arg( 'lcp_run_status', $status, $edit_url ) );
+		exit;
 	}
 
 	/**
@@ -372,6 +404,28 @@ final class LCP_Publisher {
 			'<div class="notice notice-error is-dismissible"><p>%s %s</p></div>',
 			esc_html__( 'LinkedIn crosspost failed:', 'linkedin-crosspost' ),
 			esc_html( (string) $error )
+		);
+	}
+
+	/**
+	 * One-time success notice after "Post to LinkedIn now" (?lcp_run_status=
+	 * posted). The "failed" case needs no separate notice — error_notice()
+	 * already shows the message run_crosspost() just recorded.
+	 *
+	 * @return void
+	 */
+	public static function run_now_notice(): void {
+		$screen = get_current_screen();
+		if ( ! $screen || 'post' !== $screen->base ) {
+			return;
+		}
+		$status = isset( $_GET['lcp_run_status'] ) ? sanitize_key( wp_unslash( $_GET['lcp_run_status'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( 'posted' !== $status ) {
+			return;
+		}
+		printf(
+			'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+			esc_html__( 'Posted to LinkedIn.', 'linkedin-crosspost' )
 		);
 	}
 }

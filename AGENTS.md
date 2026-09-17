@@ -72,6 +72,13 @@ for what's open and what order they're meant to land in.
   the real work a minute out via wp-cron instead and re-reads everything
   fresh when it fires — don't "simplify" that back to doing it inline, the
   bug will come back.
+- **wp-cron isn't trustworthy alone.** A second live test still posted
+  nothing, silently — Site Health showed no cron-specific issue, so the exact
+  cause on onygo.org is still open, but page-load pseudo-cron on a cached
+  site is exactly the kind of thing that fails without ever surfacing an
+  error. `LCP_Metabox` shows whether/when a crosspost is actually queued, and
+  a "Post to LinkedIn now" button (`LCP_Publisher::handle_run_now()`) always
+  works independent of wp-cron — keep both whenever this area changes.
 
 ## Before calling a change done
 

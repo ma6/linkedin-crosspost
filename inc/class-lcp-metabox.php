@@ -114,6 +114,10 @@ final class LCP_Metabox {
 			esc_html__( 'Share on LinkedIn when this post is published', 'linkedin-crosspost' )
 		);
 
+		if ( $enabled ) {
+			self::render_status( $post );
+		}
+
 		echo '<p><strong>' . esc_html__( 'Image', 'linkedin-crosspost' ) . '</strong></p>';
 		echo '<div class="lcp-image-picker">';
 		printf(
@@ -153,6 +157,47 @@ final class LCP_Metabox {
 				)
 			)
 		);
+	}
+
+	/**
+	 * Crosspost status: already posted, queued for a specific time, not
+	 * queued at all, or nothing (not published yet, nothing to show). A
+	 * "Post to LinkedIn now" button bypasses the wp-cron wait — see #5.
+	 *
+	 * @param WP_Post $post Current post.
+	 * @return void
+	 */
+	private static function render_status( WP_Post $post ): void {
+		if ( get_post_meta( $post->ID, '_lcp_linkedin_urn', true ) ) {
+			echo '<p>' . esc_html__( 'Posted to LinkedIn.', 'linkedin-crosspost' ) . '</p>';
+			return;
+		}
+		if ( 'publish' !== $post->post_status ) {
+			return;
+		}
+
+		$queued = wp_next_scheduled( LCP_Publisher::CRON_HOOK, array( $post->ID ) );
+		if ( $queued ) {
+			printf(
+				'<p class="description">%s</p>',
+				esc_html(
+					sprintf(
+						/* translators: %s: formatted queued time. */
+						__( 'Queued to post at %s.', 'linkedin-crosspost' ),
+						wp_date( get_option( 'date_format', 'Y-m-d' ) . ' ' . get_option( 'time_format', 'H:i' ), $queued )
+					)
+				)
+			);
+		} else {
+			echo '<p class="description">' . esc_html__( 'Not queued.', 'linkedin-crosspost' ) . '</p>';
+		}
+
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( LCP_Publisher::RUN_NOW_ACTION . '_' . $post->ID );
+		printf( '<input type="hidden" name="action" value="%s">', esc_attr( LCP_Publisher::RUN_NOW_ACTION ) );
+		printf( '<input type="hidden" name="post_id" value="%d">', $post->ID );
+		submit_button( __( 'Post to LinkedIn now', 'linkedin-crosspost' ), 'secondary', 'submit', false );
+		echo '</form>';
 	}
 
 	/**
