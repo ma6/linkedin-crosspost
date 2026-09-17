@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -32,7 +32,9 @@ LinkedIn's data export the other direction.
 Site options: `lcp_client_id`, `lcp_client_secret` (your LinkedIn Developer
 App credentials), `lcp_access_token`, `lcp_token_expires`, `lcp_member_sub`,
 `lcp_member_name` (the OAuth connection) — deleting the plugin removes all
-six. Per post: `_lcp_image_id`, `_lcp_text`, `_lcp_share_enabled` — real
+six. Per post: `_lcp_image_id`, `_lcp_text`, `_lcp_share_enabled`,
+`_lcp_linkedin_urn` (set once crossposted — blocks a second post on a
+republish), `_lcp_crosspost_error` (cleared on the next success) — real
 content, left in place when the plugin is deleted, same as `linkedin-shares`
 leaves its imported drafts alone.
 
@@ -42,10 +44,20 @@ leaves its imported drafts alone.
   separate LinkedIn approval for long-lived refresh; reconnecting periodically
   is required and the plugin warns in wp-admin before the token lapses.
 * Posts to a personal profile only — no organization page support.
-* No publish-time posting yet (issue #4) — the meta box saves the fields, but
-  nothing is sent to LinkedIn until the publisher ships.
+* A crosspost happens once per post, the first time it transitions to
+  Published (immediate or scheduled). Editing an already-published post again
+  does not re-post it; there is no manual "post again" button.
+* A failure (not connected, expired token, LinkedIn API error) shows as a
+  notice on that post's edit screen — it does not retry automatically.
 
 == Changelog ==
+
+= 0.4.0 =
+* Publishing a post (immediate or scheduled, with the toggle on and LinkedIn
+  connected) now creates the LinkedIn UGC post: the meta-box image (uploaded
+  via LinkedIn's Assets API) and short text, plus a link back to the post.
+  Never posts twice for the same post. A failure surfaces as a notice on the
+  post's edit screen instead of failing silently.
 
 = 0.3.0 =
 * Editor meta box on posts ("LinkedIn Crosspost"): pick or upload a square
