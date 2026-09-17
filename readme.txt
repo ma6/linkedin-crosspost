@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,8 +31,10 @@ LinkedIn's data export the other direction.
 
 Site options: `lcp_client_id`, `lcp_client_secret` (your LinkedIn Developer
 App credentials), `lcp_access_token`, `lcp_token_expires`, `lcp_member_sub`,
-`lcp_member_name` (the OAuth connection). No post meta yet — the meta box
-hasn't shipped. Deleting the plugin removes all six options.
+`lcp_member_name` (the OAuth connection) — deleting the plugin removes all
+six. Per post: `_lcp_image_id`, `_lcp_text`, `_lcp_share_enabled` — real
+content, left in place when the plugin is deleted, same as `linkedin-shares`
+leaves its imported drafts alone.
 
 == Known limits ==
 
@@ -40,10 +42,15 @@ hasn't shipped. Deleting the plugin removes all six options.
   separate LinkedIn approval for long-lived refresh; reconnecting periodically
   is required and the plugin warns in wp-admin before the token lapses.
 * Posts to a personal profile only — no organization page support.
-* No meta box or publish-time posting yet (issues #3, #4) — connecting is all
-  this version does.
+* No publish-time posting yet (issue #4) — the meta box saves the fields, but
+  nothing is sent to LinkedIn until the publisher ships.
 
 == Changelog ==
+
+= 0.3.0 =
+* Editor meta box on posts ("LinkedIn Crosspost"): pick or upload a square
+  image, write the short text to post, and a "Share on LinkedIn" toggle that
+  defaults on (opt-out).
 
 = 0.2.0 =
 * Settings → LinkedIn Connection: enter your LinkedIn app's Client ID/Secret,

@@ -36,7 +36,7 @@ already do by hand.
 linkedin-crosspost.php      bootstrap: constants, requires, plugins_loaded
 inc/class-lcp-settings.php    Settings → LinkedIn Connection: app credentials, connection status  [done, #2]
 inc/class-lcp-oauth.php       3-legged OAuth (w_member_social + openid), token storage, expiry warning  [done, #2]
-inc/class-lcp-metabox.php     editor meta box: square image, short text, "Share on LinkedIn" toggle  [planned, #3]
+inc/class-lcp-metabox.php     editor meta box: square image, short text, "Share on LinkedIn" toggle  [done, #3]
 inc/class-lcp-publisher.php   transition_post_status → publish hook: registerUpload + create the UGC post  [planned, #4]
 ```
 
