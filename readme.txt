@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.9.1
+Stable tag: 1.0.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,15 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 1.0.0 =
+* Found the actual reason images never posted, with no error: this plugin
+  was built against LinkedIn's older /v2/assets + /v2/ugcPosts API, which
+  LinkedIn's own docs say is replaced by /rest/images + /rest/posts — text
+  posting happened to still work on the old pair, image posting silently
+  didn't. Rewritten against the current API: a new required
+  `LinkedIn-Version` header, and a different request/response shape
+  throughout. Image posting is expected to actually work now.
 
 = 0.9.1 =
 * Removed the automatic center-crop. Martin wants to choose the crop

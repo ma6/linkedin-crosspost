@@ -11,17 +11,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Hooks the publish transition and talks to LinkedIn's Assets + UGC Posts
- * API.
+ * Hooks the publish transition and talks to LinkedIn's Images + Posts API.
+ *
+ * Not the older /v2/assets + /v2/ugcPosts pair — LinkedIn's own docs
+ * (learn.microsoft.com/.../shares/images-api) say outright "The Images API
+ * replaces the Assets API", and /v2/ugcPosts is the same generation. Found
+ * live: the old pair silently failed to post an image (no image API docs
+ * were checked before building #4 — an assumption that turned out wrong).
+ * Every call here needs a `LinkedIn-Version: YYYYMM` header, which the old
+ * pair never required.
  */
 final class LCP_Publisher {
 
-	const REGISTER_UPLOAD_URL = 'https://api.linkedin.com/v2/assets?action=registerUpload';
-	const UGC_POSTS_URL       = 'https://api.linkedin.com/v2/ugcPosts';
-	const RECIPE_FEEDSHARE    = 'urn:li:digitalmediaRecipe:feedshare-image';
-	const CRON_HOOK           = 'lcp_crosspost_event';
-	const DELAY               = MINUTE_IN_SECONDS;
-	const RUN_NOW_ACTION      = 'lcp_run_now';
+	const IMAGES_API_URL  = 'https://api.linkedin.com/rest/images?action=initializeUpload';
+	const POSTS_API_URL   = 'https://api.linkedin.com/rest/posts';
+	const API_VERSION     = '202508';
+	const CRON_HOOK       = 'lcp_crosspost_event';
+	const DELAY           = MINUTE_IN_SECONDS;
+	const RUN_NOW_ACTION  = 'lcp_run_now';
 
 	/**
 	 * Hook registration.
@@ -191,7 +198,7 @@ final class LCP_Publisher {
 	}
 
 	/**
-	 * Build and send the UGC post.
+	 * Build and send the post.
 	 *
 	 * @param WP_Post $post The post being published.
 	 * @return string|WP_Error The created share's URN, or an error.
@@ -204,12 +211,12 @@ final class LCP_Publisher {
 		}
 		$author_urn = 'urn:li:person:' . $author_sub;
 
-		$image_id = (int) get_post_meta( $post->ID, '_lcp_image_id', true );
-		$asset    = null;
+		$image_id  = (int) get_post_meta( $post->ID, '_lcp_image_id', true );
+		$image_urn = null;
 		if ( $image_id > 0 ) {
-			$asset = self::upload_image( $access_token, $author_urn, $image_id );
-			if ( is_wp_error( $asset ) ) {
-				return $asset;
+			$image_urn = self::upload_image( $access_token, $author_urn, $image_id );
+			if ( is_wp_error( $image_urn ) ) {
+				return $image_urn;
 			}
 		}
 
@@ -217,39 +224,31 @@ final class LCP_Publisher {
 		$link       = (string) get_permalink( $post );
 		$commentary = trim( $text . ( '' !== $text ? "\n\n" : '' ) . $link );
 
-		$share_content = array(
-			'shareCommentary'    => array( 'text' => $commentary ),
-			'shareMediaCategory' => $asset ? 'IMAGE' : 'NONE',
+		$body = array(
+			'author'                    => $author_urn,
+			'commentary'                => $commentary,
+			'visibility'                => 'PUBLIC',
+			'distribution'              => array(
+				'feedDistribution'               => 'MAIN_FEED',
+				'targetEntities'                  => array(),
+				'thirdPartyDistributionChannels'  => array(),
+			),
+			'lifecycleState'            => 'PUBLISHED',
+			'isReshareDisabledByAuthor' => false,
 		);
-		if ( $asset ) {
-			$share_content['media'] = array(
-				array(
-					'status' => 'READY',
-					'media'  => $asset,
+		if ( $image_urn ) {
+			$body['content'] = array(
+				'media' => array(
+					'id' => $image_urn,
 				),
 			);
 		}
 
-		$body = array(
-			'author'          => $author_urn,
-			'lifecycleState'  => 'PUBLISHED',
-			'specificContent' => array(
-				'com.linkedin.ugc.ShareContent' => $share_content,
-			),
-			'visibility'      => array(
-				'com.linkedin.ugc.MemberNetworkVisibility' => 'PUBLIC',
-			),
-		);
-
 		$response = wp_remote_post(
-			self::UGC_POSTS_URL,
+			self::POSTS_API_URL,
 			array(
 				'timeout' => 30,
-				'headers' => array(
-					'Authorization'             => 'Bearer ' . $access_token,
-					'Content-Type'              => 'application/json',
-					'X-Restli-Protocol-Version' => '2.0.0',
-				),
+				'headers' => self::api_headers( $access_token ),
 				'body'    => wp_json_encode( $body ),
 			)
 		);
@@ -284,7 +283,7 @@ final class LCP_Publisher {
 	 * @param string $access_token Bearer token.
 	 * @param string $author_urn   `urn:li:person:{id}`.
 	 * @param int    $image_id     Attachment ID.
-	 * @return string|WP_Error Asset URN, or an error.
+	 * @return string|WP_Error `urn:li:image:...`, or an error.
 	 */
 	private static function upload_image( string $access_token, string $author_urn, int $image_id ) {
 		$path = get_attached_file( $image_id );
@@ -293,24 +292,14 @@ final class LCP_Publisher {
 		}
 
 		$register = wp_remote_post(
-			self::REGISTER_UPLOAD_URL,
+			self::IMAGES_API_URL,
 			array(
 				'timeout' => 30,
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $access_token,
-					'Content-Type'  => 'application/json',
-				),
+				'headers' => self::api_headers( $access_token ),
 				'body'    => wp_json_encode(
 					array(
-						'registerUploadRequest' => array(
-							'recipes'              => array( self::RECIPE_FEEDSHARE ),
-							'owner'                => $author_urn,
-							'serviceRelationships' => array(
-								array(
-									'relationshipType' => 'OWNER',
-									'identifier'       => 'urn:li:userGeneratedContent',
-								),
-							),
+						'initializeUploadRequest' => array(
+							'owner' => $author_urn,
 						),
 					)
 				),
@@ -321,11 +310,24 @@ final class LCP_Publisher {
 			return $register;
 		}
 
-		$reg_body   = json_decode( (string) wp_remote_retrieve_body( $register ), true );
-		$upload_url = $reg_body['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl'] ?? null;
-		$asset_urn  = $reg_body['value']['asset'] ?? null;
+		$register_code = (int) wp_remote_retrieve_response_code( $register );
+		if ( $register_code < 200 || $register_code >= 300 ) {
+			return new WP_Error(
+				'lcp_register_failed',
+				sprintf(
+					/* translators: 1: HTTP status code, 2: response body. */
+					__( 'LinkedIn rejected the image upload request (HTTP %1$d): %2$s', 'linkedin-crosspost' ),
+					$register_code,
+					wp_strip_all_tags( (string) wp_remote_retrieve_body( $register ) )
+				)
+			);
+		}
 
-		if ( ! is_string( $upload_url ) || ! is_string( $asset_urn ) ) {
+		$reg_body   = json_decode( (string) wp_remote_retrieve_body( $register ), true );
+		$upload_url = $reg_body['value']['uploadUrl'] ?? null;
+		$image_urn  = $reg_body['value']['image'] ?? null;
+
+		if ( ! is_string( $upload_url ) || ! is_string( $image_urn ) ) {
 			return new WP_Error( 'lcp_register_failed', __( 'LinkedIn did not return an upload URL for the image.', 'linkedin-crosspost' ) );
 		}
 
@@ -362,7 +364,22 @@ final class LCP_Publisher {
 			);
 		}
 
-		return $asset_urn;
+		return $image_urn;
+	}
+
+	/**
+	 * Headers every /rest/* call needs.
+	 *
+	 * @param string $access_token Bearer token.
+	 * @return array<string, string>
+	 */
+	private static function api_headers( string $access_token ): array {
+		return array(
+			'Authorization'             => 'Bearer ' . $access_token,
+			'Content-Type'              => 'application/json',
+			'X-Restli-Protocol-Version' => '2.0.0',
+			'LinkedIn-Version'          => self::API_VERSION,
+		);
 	}
 
 	/**

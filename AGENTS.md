@@ -37,7 +37,7 @@ linkedin-crosspost.php      bootstrap: constants, requires, plugins_loaded
 inc/class-lcp-settings.php    Settings → LinkedIn Connection: app credentials, connection status  [done, #2]
 inc/class-lcp-oauth.php       3-legged OAuth (w_member_social + openid), token storage, expiry warning  [done, #2]
 inc/class-lcp-metabox.php     editor meta box: image, short text, "Share on LinkedIn" toggle  [done, #3]
-inc/class-lcp-publisher.php   transition_post_status queues a 1-minute-out wp-cron job: registerUpload + create the UGC post  [done, #4]
+inc/class-lcp-publisher.php   transition_post_status queues a 1-minute-out wp-cron job: /rest/images initializeUpload + /rest/posts  [done, #4]
 ```
 
 Each file lands against its own issue — check `gh issue list` in this repo
@@ -137,6 +137,20 @@ for what's open and what order they're meant to land in.
   interactive crop step — see #6) than have this plugin guess. The image is
   uploaded to LinkedIn exactly as chosen, unmodified. Don't reintroduce
   automatic cropping without that issue's interactive picker.
+- **Use LinkedIn's `/rest/images` + `/rest/posts` API, never `/v2/assets` +
+  `/v2/ugcPosts`.** #4 was built against the v2 pair from memory, without
+  checking current docs first — text-only posting happened to still work
+  (confirmed live), but image posting silently produced no image and no
+  error. LinkedIn's own docs say outright "The Images API replaces the
+  Assets API" (learn.microsoft.com/en-us/linkedin/marketing/
+  community-management/shares/images-api). The `/rest/*` pair needs a
+  `LinkedIn-Version: YYYYMM` header the v2 pair never did (`API_VERSION`
+  constant — bump it occasionally; LinkedIn sunsets old monikers), and an
+  entirely different request/response shape (flat `content.media.id` with a
+  bare `urn:li:image:...`, not the nested `specificContent.com.linkedin.
+  ugc.ShareContent` structure with `urn:li:digitalmediaAsset:...`). Before
+  touching this file again, re-check that page for what's current — don't
+  assume either version from memory.
 
 ## Before calling a change done
 
