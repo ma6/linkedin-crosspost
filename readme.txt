@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.6
+Stable tag: 0.10.7
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,18 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.10.7 =
+* Found it, via the new debug log: the plugin works correctly end to end —
+  LinkedIn was rejecting a specific test post with HTTP 422 "Duplicate post
+  is detected" (too many near-identical test posts today), which this
+  plugin was correctly detecting and recording the whole time. The real
+  remaining issue was that this plugin's admin_notices never render on this
+  site at all (confirmed: even an unconditional one didn't show, while WP
+  core's own notices do). Fixed properly, not just for debugging: a
+  crosspost failure now shows directly inside the "LinkedIn Crosspost" meta
+  box itself, which — unlike the separate admin_notices — is confirmed to
+  always render.
 
 = 0.10.6 =
 * Temporary diagnostic: wp-admin notices from this plugin never rendered on

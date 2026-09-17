@@ -181,6 +181,20 @@ final class LCP_Metabox {
 			return;
 		}
 
+		// Shown here, not as a separate admin_notice — confirmed live that
+		// this plugin's admin_notices callbacks never render on this site
+		// (even an unconditional one with no gating at all), while this
+		// meta box's own output always has. Whatever the cause, this is the
+		// pathway proven to actually reach the screen.
+		$error = get_post_meta( $post->ID, '_lcp_crosspost_error', true );
+		if ( $error ) {
+			printf(
+				'<p style="color:#d63638;">%s %s</p>',
+				esc_html__( 'LinkedIn crosspost failed:', 'linkedin-crosspost' ),
+				esc_html( (string) $error )
+			);
+		}
+
 		$queued = wp_next_scheduled( LCP_Publisher::CRON_HOOK, array( $post->ID ) );
 		if ( $queued ) {
 			printf(

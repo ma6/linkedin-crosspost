@@ -151,6 +151,24 @@ for what's open and what order they're meant to land in.
   ugc.ShareContent` structure with `urn:li:digitalmediaAsset:...`). Before
   touching this file again, re-check that page for what's current — don't
   assume either version from memory.
+- **This plugin's `admin_notices` output does not render on onygo.org, full
+  stop.** Confirmed by elimination across several diagnostics: an
+  unconditional notice with zero gating (not even a screen check) never
+  appeared, while WP core's own "Post published." notice did, right after —
+  so it isn't notices being suppressed site-wide, and it isn't a stale
+  opcache (a runtime-version notice confirmed the current code is what's
+  executing). The actual cause was never identified and isn't worth
+  chasing further. **Never rely on `admin_notices` for anything this
+  plugin needs Martin to actually see** — surface it inside the "LinkedIn
+  Crosspost" meta box itself instead (confirmed reliable: it's plain
+  `add_meta_box()` output, not a separate hook), or in the plain-text debug
+  log if it's diagnostic rather than user-facing.
+- **LinkedIn's duplicate-content detection is real and will reject
+  near-identical test posts with HTTP 422 "Duplicate post is detected".**
+  Not a bug — LinkedIn compares new post content against the member's
+  recent posts. Don't chase a 422 with that message as if it were another
+  API-shape problem; it means exactly what it says. Use genuinely different
+  text for each live test.
 
 ## Before calling a change done
 
