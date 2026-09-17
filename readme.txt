@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,17 +29,27 @@ LinkedIn's data export the other direction.
 
 == Stored data ==
 
-Not yet applicable — no settings or meta exist until the OAuth connection and
-meta box ship. This section will list every option and meta key once they do.
+Site options: `lcp_client_id`, `lcp_client_secret` (your LinkedIn Developer
+App credentials), `lcp_access_token`, `lcp_token_expires`, `lcp_member_sub`,
+`lcp_member_name` (the OAuth connection). No post meta yet — the meta box
+hasn't shipped. Deleting the plugin removes all six options.
 
 == Known limits ==
 
 * Personal-profile access tokens from LinkedIn expire (~60 days) without a
   separate LinkedIn approval for long-lived refresh; reconnecting periodically
-  is required and the plugin warns before the token lapses.
+  is required and the plugin warns in wp-admin before the token lapses.
 * Posts to a personal profile only — no organization page support.
+* No meta box or publish-time posting yet (issues #3, #4) — connecting is all
+  this version does.
 
 == Changelog ==
+
+= 0.2.0 =
+* Settings → LinkedIn Connection: enter your LinkedIn app's Client ID/Secret,
+  connect via OAuth (OpenID Connect + Share on LinkedIn), see the connected
+  member and token expiry, disconnect. Admin notice warns before the token
+  lapses.
 
 = 0.1.0 =
 * Repository scaffold. No functionality yet.

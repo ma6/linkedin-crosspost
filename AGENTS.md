@@ -30,14 +30,14 @@ wrote for that post in the editor, plus a link back to it. It does not
 generate the image or the text — you write those yourself, the same way you
 already do by hand.
 
-## Shape (planned — nothing beyond the bootstrap exists yet)
+## Shape
 
 ```
 linkedin-crosspost.php      bootstrap: constants, requires, plugins_loaded
-inc/class-lcp-settings.php    Settings → LinkedIn Connection: OAuth connect/disconnect, token status
-inc/class-lcp-oauth.php       3-legged OAuth (w_member_social + openid), token storage, expiry warning
-inc/class-lcp-metabox.php     editor meta box: square image, short text, "Share on LinkedIn" toggle
-inc/class-lcp-publisher.php   transition_post_status → publish hook: registerUpload + create the UGC post
+inc/class-lcp-settings.php    Settings → LinkedIn Connection: app credentials, connection status  [done, #2]
+inc/class-lcp-oauth.php       3-legged OAuth (w_member_social + openid), token storage, expiry warning  [done, #2]
+inc/class-lcp-metabox.php     editor meta box: square image, short text, "Share on LinkedIn" toggle  [planned, #3]
+inc/class-lcp-publisher.php   transition_post_status → publish hook: registerUpload + create the UGC post  [planned, #4]
 ```
 
 Each file lands against its own issue — check `gh issue list` in this repo
