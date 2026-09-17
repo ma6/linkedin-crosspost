@@ -119,6 +119,17 @@ for what's open and what order they're meant to land in.
   catch and cancel a triggered event. `$form.get(0).submit()` calls the
   native DOM method, which by spec doesn't dispatch a 'submit' event at all,
   so nothing gets a chance to intercept it.
+- **`run_crosspost()`'s posting attempt runs inside `try { } catch
+  ( \Throwable $e )`.** A seventh live test: the queued job ran (it left the
+  schedule — "Not queued." replaced "Queued to post at…") but recorded
+  neither success nor an error, meaning a PHP error most likely killed
+  execution partway through silently — this runs via wp-cron, unsupervised,
+  no error log visible. `\Throwable` (not just `\Exception`) is deliberate:
+  it also catches PHP's Error hierarchy (TypeError and friends), which is
+  the actual failure class a runtime bug would surface as. Any code added
+  to the posting path (post_to_linkedin(), upload_image(), square_crop())
+  is covered by this same catch — don't bypass it by calling something
+  risky from outside that try block.
 
 ## Before calling a change done
 

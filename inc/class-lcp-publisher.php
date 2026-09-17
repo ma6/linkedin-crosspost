@@ -158,7 +158,29 @@ final class LCP_Publisher {
 			return;
 		}
 
-		$result = self::post_to_linkedin( $post );
+		// This runs unsupervised via wp-cron — nobody is watching a PHP
+		// error log. A PHP error anywhere below (post_to_linkedin(),
+		// upload_image(), square_crop()'s WP_Image_Editor calls, ...) would
+		// otherwise abort silently: the event still leaves the schedule
+		// (wp-cron marks it done regardless), but neither the success path
+		// nor record_error() below it ever runs, so the meta box is left
+		// showing "Not queued." forever with no explanation. \Throwable
+		// catches PHP's Error hierarchy (TypeError etc.) as well as
+		// exceptions, so this is the actual safety net, not just style.
+		try {
+			$result = self::post_to_linkedin( $post );
+		} catch ( \Throwable $e ) {
+			self::record_error(
+				$post_id,
+				sprintf(
+					/* translators: %s: the underlying PHP error message. */
+					__( 'Unexpected PHP error while posting: %s', 'linkedin-crosspost' ),
+					$e->getMessage()
+				)
+			);
+			return;
+		}
+
 		if ( is_wp_error( $result ) ) {
 			self::record_error( $post_id, $result->get_error_message() );
 			return;

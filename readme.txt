@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.8.2
+Stable tag: 0.9.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,14 @@ leaves its imported drafts alone.
   a non-square image is kept.
 
 == Changelog ==
+
+= 0.9.0 =
+* A queued crosspost that had a PHP error partway through (anywhere in the
+  image upload/crop or the LinkedIn API call) could leave the meta box
+  showing "Not queued." forever with nothing to explain why — the event
+  runs via wp-cron with nobody watching a PHP error log, so it vanished
+  silently. The whole posting attempt now runs inside a try/catch that
+  records any PHP error as a visible notice instead.
 
 = 0.8.2 =
 * Fixed: "Post to LinkedIn now" went back to doing nothing at all after the
