@@ -169,6 +169,17 @@ for what's open and what order they're meant to land in.
   recent posts. Don't chase a 422 with that message as if it were another
   API-shape problem; it means exactly what it says. Use genuinely different
   text for each live test.
+- **The image upload PUT (to the URL from `/rest/images?action=
+  initializeUpload`) needs an explicit `Content-Type` header set to the
+  file's real mime type.** Confirmed live via the debug log: without it,
+  LinkedIn rejected the PUT with a bare HTTP 400 (an HTML page, not a JSON
+  API error — no useful detail in the body). The older Assets API's own
+  docs show a plain `curl --upload-file` with no Content-Type and that
+  apparently works there, but the newer Images API's upload URL looks
+  structurally different (`dms-uploads/sp/v2/...` vs the old
+  `dms-uploads/{id}/...`) and doesn't behave the same way. Text-only
+  posting (no image) was confirmed working end to end (HTTP 201) via the
+  same debug log before this fix.
 
 ## Before calling a change done
 

@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.7
+Stable tag: 0.10.8
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,13 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.10.8 =
+* The debug log showed exactly why an image post failed: the actual file
+  upload PUT (after a successful initializeUpload) was rejected with a bare
+  HTTP 400 — an HTML page, not a JSON API error, and no Content-Type header
+  was being sent at all. Now sends the image's real mime type on that PUT.
+  Text-only posting is confirmed working end to end via the same debug log.
 
 = 0.10.7 =
 * Found it, via the new debug log: the plugin works correctly end to end —

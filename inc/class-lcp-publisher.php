@@ -401,6 +401,18 @@ final class LCP_Publisher {
 			return new WP_Error( 'lcp_image_read_failed', __( 'The crosspost image could not be read.', 'linkedin-crosspost' ) );
 		}
 
+		// Found live: the PUT was rejected with a bare HTTP 400 (an HTML
+		// page, not a JSON API error) with no Content-Type header sent at
+		// all. LinkedIn's older Assets API docs show a plain --upload-file
+		// curl with none either, but the newer Images API's upload URL
+		// looks structurally different (dms-uploads/sp/v2/... vs the older
+		// dms-uploads/{id}/...) and its initializeUpload response carries
+		// no per-upload headers to copy — sending the file's real mime type
+		// explicitly is the standard fix for a raw-binary PUT rejected like
+		// this, so try that before assuming anything more exotic.
+		$filetype = wp_check_filetype( $path );
+		$mime     = ! empty( $filetype['type'] ) ? $filetype['type'] : 'application/octet-stream';
+
 		$upload = wp_remote_request(
 			$upload_url,
 			array(
@@ -408,6 +420,7 @@ final class LCP_Publisher {
 				'timeout' => 30,
 				'headers' => array(
 					'Authorization' => 'Bearer ' . $access_token,
+					'Content-Type'  => $mime,
 				),
 				'body'    => $bytes,
 			)
