@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.3
+Stable tag: 0.10.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,16 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.10.4 =
+* Temporary diagnostic: the runtime check (0.10.3) confirmed current code
+  is genuinely executing — ruling out a stale opcache — yet the debug trace
+  from 0.10.2 still never appeared, meaning run_crosspost() itself was
+  never being reached, or was returning before recording anything. The
+  meta box now shows a full execution breadcrumb trail — every significant
+  step handle_run_now() and run_crosspost() take, in order, with the exact
+  guard that stopped it if one did — unconditionally, so a completely empty
+  trail is just as visible as a full one. Remove once #5 is confirmed fixed.
 
 = 0.10.3 =
 * Temporary diagnostic: an unconditional notice on every wp-admin page

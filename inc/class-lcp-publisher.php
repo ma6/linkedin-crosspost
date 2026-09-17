@@ -80,10 +80,13 @@ final class LCP_Publisher {
 	 */
 	public static function handle_run_now(): void {
 		$post_id = isset( $_POST['post_id'] ) ? absint( wp_unslash( $_POST['post_id'] ) ) : 0;
+		self::checkpoint( $post_id, 'handle_run_now: entered, post_id=' . $post_id );
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			self::checkpoint( $post_id, 'handle_run_now: capability check FAILED' );
 			wp_die( esc_html__( 'You are not allowed to do that.', 'linkedin-crosspost' ) );
 		}
 		check_admin_referer( self::RUN_NOW_ACTION . '_' . $post_id );
+		self::checkpoint( $post_id, 'handle_run_now: capability + nonce OK' );
 
 		LCP_Metabox::persist(
 			$post_id,
@@ -91,6 +94,7 @@ final class LCP_Publisher {
 			isset( $_POST['lcp_text'] ) ? (string) wp_unslash( $_POST['lcp_text'] ) : '',
 			isset( $_POST['lcp_share_enabled'] ) && '1' === wp_unslash( $_POST['lcp_share_enabled'] )
 		);
+		self::checkpoint( $post_id, 'handle_run_now: persist() done' );
 
 		$queued = wp_next_scheduled( self::CRON_HOOK, array( $post_id ) );
 		if ( $queued ) {
@@ -100,7 +104,9 @@ final class LCP_Publisher {
 		// A fresh manual post supersedes any earlier failure.
 		delete_post_meta( $post_id, '_lcp_crosspost_error' );
 
+		self::checkpoint( $post_id, 'handle_run_now: calling run_crosspost()' );
 		self::run_crosspost( $post_id );
+		self::checkpoint( $post_id, 'handle_run_now: run_crosspost() returned' );
 
 		$status    = get_post_meta( $post_id, '_lcp_linkedin_urn', true ) ? 'posted' : 'failed';
 		$edit_url  = admin_url( 'post.php?post=' . $post_id . '&action=edit' );
@@ -169,22 +175,28 @@ final class LCP_Publisher {
 	 * @return void
 	 */
 	public static function run_crosspost( int $post_id ): void {
+		self::checkpoint( $post_id, 'run_crosspost: entered' );
 		$post = get_post( $post_id );
 		if ( ! $post || 'publish' !== $post->post_status ) {
+			self::checkpoint( $post_id, 'run_crosspost: STOPPED — not published (status=' . ( $post ? $post->post_status : 'no post object' ) . ')' );
 			self::record_error( $post_id, __( 'Skipped: the post was no longer published when the crosspost ran.', 'linkedin-crosspost' ) );
 			return;
 		}
 		if ( ! LCP_Metabox::share_enabled( $post_id ) ) {
+			self::checkpoint( $post_id, 'run_crosspost: STOPPED — sharing disabled' );
 			self::record_error( $post_id, __( 'Skipped: sharing was turned off when the crosspost ran.', 'linkedin-crosspost' ) );
 			return;
 		}
 		if ( get_post_meta( $post_id, '_lcp_linkedin_urn', true ) ) {
+			self::checkpoint( $post_id, 'run_crosspost: STOPPED — _lcp_linkedin_urn already set to "' . get_post_meta( $post_id, '_lcp_linkedin_urn', true ) . '"' );
 			return; // Already posted — nothing wrong, nothing to report.
 		}
 		if ( ! LCP_OAuth::is_connected() ) {
+			self::checkpoint( $post_id, 'run_crosspost: STOPPED — LCP_OAuth::is_connected() is false' );
 			self::record_error( $post_id, __( 'LinkedIn is not connected.', 'linkedin-crosspost' ) );
 			return;
 		}
+		self::checkpoint( $post_id, 'run_crosspost: all guards passed, about to call post_to_linkedin()' );
 
 		// Capture every outbound call to LinkedIn via core's own
 		// http_api_debug hook and store it unconditionally, regardless of
@@ -460,6 +472,25 @@ final class LCP_Publisher {
 	}
 
 	/**
+	 * Append one step to a per-post execution breadcrumb trail — temporary,
+	 * to see exactly how far a run got before going quiet. Keeps the last
+	 * 30 steps.
+	 *
+	 * @param int    $post_id Post ID (0 is fine — still records against
+	 *                        that as a marker something ran before a valid
+	 *                        post ID was even known).
+	 * @param string $label   What just happened.
+	 * @return void
+	 */
+	private static function checkpoint( int $post_id, string $label ): void {
+		$steps   = get_post_meta( $post_id, '_lcp_debug_steps', true );
+		$steps   = is_array( $steps ) ? $steps : array();
+		$steps[] = gmdate( 'H:i:s' ) . ' — ' . $label;
+		$steps   = array_slice( $steps, -30 );
+		update_post_meta( $post_id, '_lcp_debug_steps', $steps );
+	}
+
+	/**
 	 * Show the most recent crosspost failure on that post's edit screen,
 	 * until it's cleared by a successful crosspost.
 	 *
@@ -508,9 +539,12 @@ final class LCP_Publisher {
 	}
 
 	/**
-	 * Show the raw HTTP trace of the most recent crosspost attempt —
-	 * temporary, for tracking down live failures that show neither success
-	 * nor a recorded error. Remove once #5 is confirmed fixed.
+	 * Show the execution breadcrumb trail and the raw HTTP trace of the
+	 * most recent crosspost attempt — unconditionally, whether or not
+	 * either one has anything in it, so an empty result is as visible as a
+	 * populated one. Temporary, for tracking down live failures that show
+	 * neither success nor a recorded error. Remove once #5 is confirmed
+	 * fixed.
 	 *
 	 * @return void
 	 */
@@ -523,27 +557,37 @@ final class LCP_Publisher {
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}
-		$raw = get_post_meta( $post_id, '_lcp_debug_trace', true );
-		if ( ! $raw ) {
-			return;
-		}
-		$trace = json_decode( (string) $raw, true );
-		if ( ! is_array( $trace ) ) {
-			return;
+
+		echo '<div class="notice notice-info"><p><strong>' . esc_html__( 'LinkedIn crosspost debug (temporary):', 'linkedin-crosspost' ) . '</strong></p>';
+
+		$steps = get_post_meta( $post_id, '_lcp_debug_steps', true );
+		echo '<p>' . esc_html__( 'Execution steps:', 'linkedin-crosspost' ) . '</p>';
+		if ( is_array( $steps ) && ! empty( $steps ) ) {
+			echo '<ol>';
+			foreach ( $steps as $step ) {
+				printf( '<li><code>%s</code></li>', esc_html( (string) $step ) );
+			}
+			echo '</ol>';
+		} else {
+			echo '<p>' . esc_html__( '(none recorded for this post — handle_run_now()/run_crosspost() never ran at all)', 'linkedin-crosspost' ) . '</p>';
 		}
 
-		echo '<div class="notice notice-info"><p><strong>' . esc_html__( 'LinkedIn crosspost debug trace (temporary):', 'linkedin-crosspost' ) . '</strong></p>';
-		if ( empty( $trace ) ) {
-			echo '<p>' . esc_html__( 'No calls to linkedin.com were made at all during the last attempt.', 'linkedin-crosspost' ) . '</p>';
+		$raw   = get_post_meta( $post_id, '_lcp_debug_trace', true );
+		$trace = $raw ? json_decode( (string) $raw, true ) : null;
+		echo '<p>' . esc_html__( 'LinkedIn HTTP calls:', 'linkedin-crosspost' ) . '</p>';
+		if ( is_array( $trace ) && ! empty( $trace ) ) {
+			foreach ( $trace as $row ) {
+				printf(
+					'<p><code>%s</code><br>%s: %s</p>',
+					esc_html( (string) ( $row['url'] ?? '' ) ),
+					esc_html__( 'Status', 'linkedin-crosspost' ),
+					esc_html( (string) ( $row['code'] ?? '' ) . ' ' . ( $row['body'] ?? '' ) )
+				);
+			}
+		} else {
+			echo '<p>' . esc_html__( '(none — either no attempt ran far enough to make one, or none were made)', 'linkedin-crosspost' ) . '</p>';
 		}
-		foreach ( $trace as $row ) {
-			printf(
-				'<p><code>%s</code><br>%s: %s</p>',
-				esc_html( (string) ( $row['url'] ?? '' ) ),
-				esc_html__( 'Status', 'linkedin-crosspost' ),
-				esc_html( (string) ( $row['code'] ?? '' ) . ' ' . ( $row['body'] ?? '' ) )
-			);
-		}
+
 		echo '</div>';
 	}
 }
