@@ -6,6 +6,8 @@
 		var $preview = $( '#lcp-image-preview' );
 		var $hidden = $( '#lcp-image-id' );
 		var $remove = $( '#lcp-image-remove' );
+		var $cropHint = $( '#lcp-crop-hint' );
+		var $cropHintLink = $( '#lcp-crop-hint-link' );
 
 		$( '#lcp-image-choose' ).on( 'click', function ( e ) {
 			e.preventDefault();
@@ -31,6 +33,16 @@
 				$preview.attr( 'src', url ).show();
 				$hidden.val( attachment.id );
 				$remove.show();
+
+				// Not an inline cropper — points at WordPress's own "Edit
+				// Image" tool on that attachment's edit screen instead of
+				// reimplementing cropping UI (see AGENTS.md on why).
+				if ( attachment.width && attachment.height && attachment.width !== attachment.height ) {
+					$cropHintLink.attr( 'href', lcpMetabox.editUrlBase + attachment.id );
+					$cropHint.show();
+				} else {
+					$cropHint.hide();
+				}
 			} );
 
 			frame.open();
@@ -41,6 +53,7 @@
 			$preview.attr( 'src', '' ).hide();
 			$hidden.val( '' );
 			$remove.hide();
+			$cropHint.hide();
 		} );
 
 		// "Post to LinkedIn now": build a standalone <form> on the fly,

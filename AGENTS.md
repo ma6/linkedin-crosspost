@@ -103,10 +103,21 @@ for what's open and what order they're meant to land in.
   `trigger('submit')` only fires the JS event, which the block editor's own
   document-level submit guard (against an accidental SPA navigation) swallows
   silently.
-- **No server-side image cropping.** Martin doesn't want a blind center
-  crop; he wants to choose the crop himself (e.g. the Media Library's own
-  "Edit Image" tool), or a future interactive crop step (#6). The image
-  uploads to LinkedIn exactly as chosen, unmodified.
+- **No server-side image cropping, and no inline cropper either.** Martin
+  doesn't want a blind center crop; he wants to choose the crop himself. #6
+  originally proposed an inline cropper matching the theme's homepage hero
+  photo picker (`onygo/inc/customizer.php`'s `WP_Customize_Cropped_Image_
+  Control`) — but that control only wires up inside `customize_register`;
+  outside the Customizer (this meta box is a plain post-edit screen) you'd
+  have to hand-roll its underlying `wp.media.controller.Cropper` JS
+  yourself, undocumented, with no way for me to test it in a real browser.
+  Decided against that risk after today's JS debugging. Instead:
+  `LCP_Metabox::render()` checks the chosen image's stored dimensions and,
+  if it isn't square, shows a hint linking straight to that attachment's own
+  "Edit Image" screen (WordPress's existing crop tool) — `metabox.js`
+  updates the same hint live when a new image is picked, using
+  `attachment.width`/`.height` from the picker's own selection. The image
+  still uploads to LinkedIn exactly as chosen, unmodified.
 - **Use LinkedIn's `/rest/images` + `/rest/posts` API, never `/v2/assets` +
   `/v2/ugcPosts`** (LinkedIn's own docs: "The Images API replaces the Assets
   API" — learn.microsoft.com/en-us/linkedin/marketing/community-management/

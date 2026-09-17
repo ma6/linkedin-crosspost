@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.11.0
+Stable tag: 0.12.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,14 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.12.0 =
+* Picking a non-square image now shows a hint with a link straight to that
+  image's "Edit Image" tool (the Media Library's own crop tool) instead of
+  silently uploading it as-is. Deliberately not an inline cropper — see
+  AGENTS.md for why (the one WordPress ships, `WP_Customize_Cropped_Image_
+  Control`, is Customizer-only and hand-rolling its underlying JS was judged
+  not worth the risk after today's debugging).
 
 = 0.11.0 =
 * Confirmed live, with an image: the full flow now works end to end

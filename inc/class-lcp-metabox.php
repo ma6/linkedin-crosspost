@@ -74,8 +74,9 @@ final class LCP_Metabox {
 			'lcp-metabox',
 			'lcpMetabox',
 			array(
-				'pickTitle'  => __( 'Choose an image', 'linkedin-crosspost' ),
-				'pickButton' => __( 'Use this image', 'linkedin-crosspost' ),
+				'pickTitle'   => __( 'Choose an image', 'linkedin-crosspost' ),
+				'pickButton'  => __( 'Use this image', 'linkedin-crosspost' ),
+				'editUrlBase' => admin_url( 'post.php?action=edit&post=' ),
 			)
 		);
 	}
@@ -118,6 +119,14 @@ final class LCP_Metabox {
 			self::render_status( $post );
 		}
 
+		$is_square = true;
+		if ( $image_id ) {
+			$meta = wp_get_attachment_metadata( $image_id );
+			if ( $meta && isset( $meta['width'], $meta['height'] ) && (int) $meta['width'] !== (int) $meta['height'] ) {
+				$is_square = false;
+			}
+		}
+
 		echo '<p><strong>' . esc_html__( 'Image', 'linkedin-crosspost' ) . '</strong></p>';
 		echo '<div class="lcp-image-picker">';
 		printf(
@@ -137,6 +146,18 @@ final class LCP_Metabox {
 			esc_html__( 'Remove', 'linkedin-crosspost' )
 		);
 		echo '</p>';
+		// Not an inline cropper — deliberately reuses WordPress's own image
+		// editor (the "Edit Image" tool on the attachment's edit screen)
+		// rather than reimplementing cropping UI. Toggled + re-pointed by
+		// metabox.js whenever a new image is picked; the values here are
+		// just the correct starting state for whatever's already selected.
+		printf(
+			'<p id="lcp-crop-hint" style="color:#d63638;%s">%s <a href="%s" id="lcp-crop-hint-link" target="_blank" rel="noopener">%s</a></p>',
+			( $image_id && ! $is_square ) ? '' : 'display:none;',
+			esc_html__( "This image isn't square.", 'linkedin-crosspost' ),
+			esc_url( admin_url( 'post.php?post=' . $image_id . '&action=edit' ) ),
+			esc_html__( 'Edit Image to crop it ↗', 'linkedin-crosspost' )
+		);
 		echo '<p class="description">' . esc_html__( 'Posted exactly as chosen — nothing is cropped for you. Pick a square image yourself for the best result on LinkedIn; the preview above is a square crop of whatever you choose, just to help you judge that, not a preview of what gets sent.', 'linkedin-crosspost' ) . '</p>';
 		echo '</div>';
 
