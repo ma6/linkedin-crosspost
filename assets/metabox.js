@@ -65,7 +65,15 @@
 			field( 'lcp_text', $( '#lcp-text' ).val() );
 			field( 'lcp_share_enabled', $( '#lcp-share-enabled' ).is( ':checked' ) ? '1' : '0' );
 
-			$form.trigger( 'submit' );
+			// Native submit(), not $form.trigger('submit') — the block
+			// editor almost certainly has its own document-level 'submit'
+			// listener guarding against an accidental full-page navigation
+			// out of the SPA, and a triggered jQuery event is exactly the
+			// kind of thing that listener would catch and cancel (confirmed
+			// live: trigger('submit') produced literally no response at
+			// all). The native method doesn't dispatch a 'submit' event, so
+			// nothing gets a chance to intercept it.
+			$form.get( 0 ).submit();
 		} );
 	} );
 }( jQuery ) );

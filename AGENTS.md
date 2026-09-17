@@ -110,6 +110,15 @@ for what's open and what order they're meant to land in.
   `metabox.js` builds a standalone `<form>` on click, appended directly to
   `document.body`. If this box ever needs another button that posts
   somewhere, follow the same pattern, not a nested form.
+- **Submit a JS-built form with the native `.submit()`, never
+  `$form.trigger('submit')`.** A sixth live test: the standalone-form fix
+  above went right back to doing nothing at all. `trigger('submit')` only
+  fires jQuery's event — the block editor almost certainly has a
+  document-level 'submit' listener guarding against an accidental full-page
+  navigation out of its SPA, and that's exactly the kind of thing that would
+  catch and cancel a triggered event. `$form.get(0).submit()` calls the
+  native DOM method, which by spec doesn't dispatch a 'submit' event at all,
+  so nothing gets a chance to intercept it.
 
 ## Before calling a change done
 

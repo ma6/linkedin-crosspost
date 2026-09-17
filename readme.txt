@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.8.1
+Stable tag: 0.8.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,15 @@ leaves its imported drafts alone.
   a non-square image is kept.
 
 == Changelog ==
+
+= 0.8.2 =
+* Fixed: "Post to LinkedIn now" went back to doing nothing at all after the
+  0.8.1 fix — its dynamically-built form was submitted via jQuery's
+  `trigger('submit')`, which only fires a JS event and stops there if
+  anything on the page (almost certainly the block editor's own guard
+  against an accidental full-page navigation) calls preventDefault() on it.
+  Now calls the form's native submit() method, which doesn't dispatch an
+  event at all and so can't be intercepted.
 
 = 0.8.1 =
 * Fixed: "Post to LinkedIn now" did nothing at all once browser/page caching
