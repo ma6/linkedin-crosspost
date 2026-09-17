@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.10.4
+Stable tag: 0.10.6
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,18 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.10.6 =
+* Temporary diagnostic: wp-admin notices from this plugin never rendered on
+  this site — not even an unconditional one with no gating at all — while
+  WP core's own "Post published." notice was confirmed working. Rather than
+  keep guessing why, the debug output (execution checkpoints + LinkedIn
+  HTTP trace) now also writes to a plain-text log file in the uploads
+  directory, shown in a read-only textarea on Settings → LinkedIn
+  Connection — sidesteps the notice-rendering question entirely. (The log
+  lives in uploads/, not the plugin's own folder — that folder wasn't
+  writable at runtime, likely the same hardening Really Simple Security
+  applies on many hosts.)
 
 = 0.10.4 =
 * Temporary diagnostic: the runtime check (0.10.3) confirmed current code

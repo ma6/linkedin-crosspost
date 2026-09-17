@@ -211,15 +211,18 @@ final class LCP_Publisher {
 			if ( ! is_string( $url ) || ! str_contains( $url, 'linkedin.com' ) ) {
 				return;
 			}
+			$code = is_wp_error( $response )
+				? 'WP_Error: ' . $response->get_error_message()
+				: (string) wp_remote_retrieve_response_code( $response );
+			$body = is_wp_error( $response )
+				? ''
+				: substr( wp_strip_all_tags( (string) wp_remote_retrieve_body( $response ) ), 0, 300 );
 			$trace[] = array(
 				'url'  => $url,
-				'code' => is_wp_error( $response )
-					? 'WP_Error: ' . $response->get_error_message()
-					: (string) wp_remote_retrieve_response_code( $response ),
-				'body' => is_wp_error( $response )
-					? ''
-					: substr( wp_strip_all_tags( (string) wp_remote_retrieve_body( $response ) ), 0, 300 ),
+				'code' => $code,
+				'body' => $body,
 			);
+			self::log_line( 'HTTP ' . $url . ' -> ' . $code . ' ' . $body );
 		};
 		add_action( 'http_api_debug', $capture, 10, 5 );
 
@@ -488,6 +491,50 @@ final class LCP_Publisher {
 		$steps[] = gmdate( 'H:i:s' ) . ' — ' . $label;
 		$steps   = array_slice( $steps, -30 );
 		update_post_meta( $post_id, '_lcp_debug_steps', $steps );
+		self::log_line( 'post ' . $post_id . ': ' . $label );
+	}
+
+	/**
+	 * Path to a plain-text log file — readable directly, independent of
+	 * whether wp-admin notices render on this site at all (they didn't:
+	 * even an unconditional one, and WP's own "Post published." notice was
+	 * confirmed working, ruling out notices being suppressed site-wide). In
+	 * the uploads directory, not the plugin's own folder — the plugin
+	 * folder isn't reliably writable at runtime (confirmed live: it wasn't,
+	 * likely the same security hardening — Really Simple Security is
+	 * active — that many hosts apply), while uploads/ always has to be, or
+	 * WordPress itself couldn't handle media. Temporary; remove once #5 is
+	 * confirmed fixed.
+	 *
+	 * @return string
+	 */
+	private static function log_path(): string {
+		return trailingslashit( wp_upload_dir()['basedir'] ) . 'lcp-debug.log';
+	}
+
+	/**
+	 * Append one line to the plain-text debug log.
+	 *
+	 * @param string $line What happened.
+	 * @return void
+	 */
+	private static function log_line( string $line ): void {
+		$entry = gmdate( 'Y-m-d H:i:s' ) . ' UTC — ' . $line . "\n";
+		file_put_contents( self::log_path(), $entry, FILE_APPEND | LOCK_EX ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	}
+
+	/**
+	 * Read the debug log's content, most recent last — for display on
+	 * Settings → LinkedIn Connection.
+	 *
+	 * @return string
+	 */
+	public static function read_log(): string {
+		$path = self::log_path();
+		if ( ! file_exists( $path ) ) {
+			return '';
+		}
+		return (string) file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 	}
 
 	/**
@@ -549,16 +596,17 @@ final class LCP_Publisher {
 	 * @return void
 	 */
 	public static function debug_trace_notice(): void {
-		$screen = get_current_screen();
-		if ( ! $screen || 'post' !== $screen->base ) {
-			return;
-		}
-		$post_id = isset( $_GET['post'] ) ? absint( wp_unslash( $_GET['post'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		// No get_current_screen()->base gate here (unlike error_notice()) —
+		// deliberately, to rule out that check itself being the reason a
+		// notice doesn't render on this specific admin theme/editor setup.
+		// Falls back to $_REQUEST so it also fires on the block editor's
+		// own REST-driven requests if post.php's $_GET isn't what's set.
+		$post_id = isset( $_REQUEST['post'] ) ? absint( wp_unslash( $_REQUEST['post'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}
 
-		echo '<div class="notice notice-info"><p><strong>' . esc_html__( 'LinkedIn crosspost debug (temporary):', 'linkedin-crosspost' ) . '</strong></p>';
+		echo '<div class="notice notice-warning"><p><strong>' . esc_html__( 'LinkedIn crosspost debug (temporary):', 'linkedin-crosspost' ) . '</strong></p>';
 
 		$steps = get_post_meta( $post_id, '_lcp_debug_steps', true );
 		echo '<p>' . esc_html__( 'Execution steps:', 'linkedin-crosspost' ) . '</p>';

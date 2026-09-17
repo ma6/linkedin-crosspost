@@ -118,7 +118,37 @@ final class LCP_Settings {
 		echo '<hr>';
 		self::render_connection();
 
+		echo '<hr>';
+		self::render_debug_log();
+
 		echo '</div>';
+	}
+
+	/**
+	 * Plain-text debug log, read straight from disk — deliberately not an
+	 * admin_notices box. Confirmed live that wp-admin notices from this
+	 * plugin (including one with no gating at all beyond "is this
+	 * wp-admin") never rendered here, while WP core's own "Post published."
+	 * notice did — something about how this notice reaches the screen, not
+	 * whether notices work at all. A plain textarea sidesteps that entirely.
+	 * Temporary; remove this section once #5 is confirmed fixed.
+	 *
+	 * @return void
+	 */
+	private static function render_debug_log(): void {
+		if ( ! class_exists( 'LCP_Publisher' ) ) {
+			return;
+		}
+		echo '<h2>' . esc_html__( 'Debug log (temporary)', 'linkedin-crosspost' ) . '</h2>';
+		$log = LCP_Publisher::read_log();
+		if ( '' === $log ) {
+			echo '<p>' . esc_html__( 'Empty — nothing logged yet. Try "Post to LinkedIn now" on a post, then reload this page.', 'linkedin-crosspost' ) . '</p>';
+			return;
+		}
+		printf(
+			'<textarea readonly rows="24" class="large-text code" style="font-family:monospace;white-space:pre;">%s</textarea>',
+			esc_textarea( $log )
+		);
 	}
 
 	/**
