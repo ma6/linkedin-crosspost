@@ -3,7 +3,7 @@
  * Plugin Name:       LinkedIn Crosspost
  * Plugin URI:        https://github.com/ma6/linkedin-crosspost
  * Description:       Publish a LinkedIn post automatically when a blog post goes live. Uses the image and short text you write for it in the editor, plus a link back to the post — posted to your personal LinkedIn profile via the LinkedIn API.
- * Version:           0.12.0
+ * Version:           0.13.0
  * Requires at least: 6.5
  * Requires PHP:      8.0
  * Author:            Martin Gude
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'LCP_VERSION', '0.12.0' );
+define( 'LCP_VERSION', '0.13.0' );
 define( 'LCP_FILE', __FILE__ );
 define( 'LCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LCP_URL', plugin_dir_url( __FILE__ ) );

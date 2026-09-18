@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.12.0
+Stable tag: 0.13.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -23,6 +23,8 @@ same content you'd post by hand, just posted automatically instead.
   OAuth connection (Settings → LinkedIn Connection).
 * **Nothing generated for you.** The image and text are whatever you put in
   the meta box.
+* **Optional link tracking.** Append UTM parameters (Google Analytics) or
+  your own custom parameters (Matomo, etc.) to the shared link, site-wide.
 
 Self-contained: no dependency on any theme. Sibling of
 [linkedin-shares](https://github.com/ma6/linkedin-shares), which imports
@@ -62,6 +64,14 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.13.0 =
+* New: Settings → LinkedIn Connection has a "Link tracking" section —
+  utm_source/utm_medium/utm_campaign fields (pre-filled with linkedin/
+  social/crosspost, editable) plus a free-text field for anything else
+  (Matomo's own pk_*/mtm_* param names, utm_content, etc.). Applied
+  site-wide to the link on every crossposted post; blank fields are
+  omitted, so an unconfigured site behaves exactly as before. Closes #7.
 
 = 0.12.0 =
 * Picking a non-square image now shows a hint with a link straight to that

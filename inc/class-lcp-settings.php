@@ -91,6 +91,78 @@ final class LCP_Settings {
 			self::PAGE,
 			'lcp_app'
 		);
+
+		register_setting(
+			self::GROUP,
+			'lcp_utm_source',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_text_field',
+				'default'           => 'linkedin',
+			)
+		);
+		register_setting(
+			self::GROUP,
+			'lcp_utm_medium',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_text_field',
+				'default'           => 'social',
+			)
+		);
+		register_setting(
+			self::GROUP,
+			'lcp_utm_campaign',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_text_field',
+				'default'           => 'crosspost',
+			)
+		);
+		register_setting(
+			self::GROUP,
+			'lcp_extra_params',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_extra_params' ),
+				'default'           => '',
+			)
+		);
+
+		add_settings_section(
+			'lcp_tracking',
+			__( 'Link tracking', 'linkedin-crosspost' ),
+			array( __CLASS__, 'section_tracking' ),
+			self::PAGE
+		);
+		add_settings_field(
+			'lcp_utm_source',
+			__( 'UTM Source', 'linkedin-crosspost' ),
+			array( __CLASS__, 'field_utm_source' ),
+			self::PAGE,
+			'lcp_tracking'
+		);
+		add_settings_field(
+			'lcp_utm_medium',
+			__( 'UTM Medium', 'linkedin-crosspost' ),
+			array( __CLASS__, 'field_utm_medium' ),
+			self::PAGE,
+			'lcp_tracking'
+		);
+		add_settings_field(
+			'lcp_utm_campaign',
+			__( 'UTM Campaign', 'linkedin-crosspost' ),
+			array( __CLASS__, 'field_utm_campaign' ),
+			self::PAGE,
+			'lcp_tracking'
+		);
+		add_settings_field(
+			'lcp_extra_params',
+			__( 'Extra parameters', 'linkedin-crosspost' ),
+			array( __CLASS__, 'field_extra_params' ),
+			self::PAGE,
+			'lcp_tracking'
+		);
 	}
 
 	/**
@@ -112,7 +184,7 @@ final class LCP_Settings {
 		echo '<form action="options.php" method="post">';
 		settings_fields( self::GROUP );
 		do_settings_sections( self::PAGE );
-		submit_button( __( 'Save app credentials', 'linkedin-crosspost' ) );
+		submit_button( __( 'Save settings', 'linkedin-crosspost' ) );
 		echo '</form>';
 
 		echo '<hr>';
@@ -174,6 +246,135 @@ final class LCP_Settings {
 			esc_html__( 'Authorized redirect URL to register on that app:', 'linkedin-crosspost' ),
 			esc_html( LCP_OAuth::redirect_uri() )
 		);
+	}
+
+	/**
+	 * Tracking section intro.
+	 *
+	 * @return void
+	 */
+	public static function section_tracking(): void {
+		echo '<p>' . esc_html__( 'Appended to the post link in every LinkedIn crosspost — for Google Analytics, Matomo, or both. Leave a field blank to omit it.', 'linkedin-crosspost' ) . '</p>';
+	}
+
+	/**
+	 * UTM Source field.
+	 *
+	 * @return void
+	 */
+	public static function field_utm_source(): void {
+		printf(
+			'<input type="text" name="lcp_utm_source" value="%s" class="regular-text">',
+			esc_attr( (string) get_option( 'lcp_utm_source', '' ) )
+		);
+	}
+
+	/**
+	 * UTM Medium field.
+	 *
+	 * @return void
+	 */
+	public static function field_utm_medium(): void {
+		printf(
+			'<input type="text" name="lcp_utm_medium" value="%s" class="regular-text">',
+			esc_attr( (string) get_option( 'lcp_utm_medium', '' ) )
+		);
+	}
+
+	/**
+	 * UTM Campaign field.
+	 *
+	 * @return void
+	 */
+	public static function field_utm_campaign(): void {
+		printf(
+			'<input type="text" name="lcp_utm_campaign" value="%s" class="regular-text">',
+			esc_attr( (string) get_option( 'lcp_utm_campaign', '' ) )
+		);
+	}
+
+	/**
+	 * Free-text extra query params (e.g. Matomo's pk_campaign/mtm_* names,
+	 * or utm_content/utm_term) — anything not covered by the UTM fields
+	 * above.
+	 *
+	 * @return void
+	 */
+	public static function field_extra_params(): void {
+		printf(
+			'<input type="text" name="lcp_extra_params" value="%s" class="regular-text" placeholder="pk_campaign=blog&amp;mtm_kwd=example">',
+			esc_attr( (string) get_option( 'lcp_extra_params', '' ) )
+		);
+		echo '<p class="description">' . esc_html__( 'Raw query string, e.g. pk_campaign=blog&mtm_kwd=example.', 'linkedin-crosspost' ) . '</p>';
+	}
+
+	/**
+	 * Parse and rebuild the extra-params query string so only well-formed
+	 * key=value pairs with safe key names ever get stored.
+	 *
+	 * @param mixed $value Raw posted value.
+	 * @return string
+	 */
+	public static function sanitize_extra_params( $value ): string {
+		$value = is_string( $value ) ? trim( $value ) : '';
+		if ( '' === $value ) {
+			return '';
+		}
+
+		$parsed = array();
+		wp_parse_str( $value, $parsed );
+
+		$clean = array();
+		foreach ( $parsed as $key => $param_value ) {
+			if ( ! is_string( $key ) || ! is_string( $param_value ) ) {
+				continue;
+			}
+			if ( ! preg_match( '/^[A-Za-z0-9_.\-]+$/', $key ) ) {
+				continue;
+			}
+			$clean[ $key ] = sanitize_text_field( $param_value );
+		}
+
+		return build_query( $clean );
+	}
+
+	/**
+	 * Append the configured tracking parameters to a URL. Fields left blank
+	 * are simply omitted, so a site with nothing configured gets the bare
+	 * permalink back unchanged.
+	 *
+	 * @param string $url URL to append tracking parameters to.
+	 * @return string
+	 */
+	public static function tracked_link( string $url ): string {
+		$params = array();
+		foreach ( array(
+			'utm_source'   => 'lcp_utm_source',
+			'utm_medium'   => 'lcp_utm_medium',
+			'utm_campaign' => 'lcp_utm_campaign',
+		) as $param => $option ) {
+			$value = trim( (string) get_option( $option, '' ) );
+			if ( '' !== $value ) {
+				$params[ $param ] = $value;
+			}
+		}
+
+		$extra = (string) get_option( 'lcp_extra_params', '' );
+		if ( '' !== $extra ) {
+			$extra_params = array();
+			wp_parse_str( $extra, $extra_params );
+			foreach ( $extra_params as $key => $value ) {
+				if ( is_string( $key ) && '' !== $key ) {
+					$params[ $key ] = $value;
+				}
+			}
+		}
+
+		if ( empty( $params ) ) {
+			return $url;
+		}
+
+		return (string) add_query_arg( $params, $url );
 	}
 
 	/**

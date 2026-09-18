@@ -213,7 +213,7 @@ final class LCP_Publisher {
 		}
 
 		$text       = (string) get_post_meta( $post->ID, '_lcp_text', true );
-		$link       = (string) get_permalink( $post );
+		$link       = LCP_Settings::tracked_link( (string) get_permalink( $post ) );
 		$commentary = trim( $text . ( '' !== $text ? "\n\n" : '' ) . $link );
 
 		$body = array(
