@@ -3,7 +3,7 @@ Contributors: martingude
 Tested up to: 7.1
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 0.13.0
+Stable tag: 0.13.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -64,6 +64,17 @@ leaves its imported drafts alone.
   yourself for the best result on LinkedIn.
 
 == Changelog ==
+
+= 0.13.1 =
+* Fix: the 0.13.0 UTM defaults (linkedin/social/crosspost) never actually
+  showed up — neither pre-filled in the Settings form nor applied during a
+  real wp-cron crosspost — because they were read with
+  `get_option( $option, '' )`. WordPress only honors `register_setting()`'s
+  registered default when `get_option()` is called with no default argument
+  at all, and even then only within a request where `admin_init` already
+  fired (wp-cron never fires it). Caught by testing on a local site rather
+  than just eyeballing the diff. Now resolved by hand in
+  `LCP_Settings::option_or_default()`, independent of request context.
 
 = 0.13.0 =
 * New: Settings → LinkedIn Connection has a "Link tracking" section —

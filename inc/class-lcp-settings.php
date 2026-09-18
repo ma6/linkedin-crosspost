@@ -18,6 +18,21 @@ final class LCP_Settings {
 	const GROUP = 'lcp_settings';
 
 	/**
+	 * Pre-filled UTM defaults, shown until an admin overrides or clears
+	 * them. Not relied on via register_setting()'s own 'default' handling —
+	 * that only kicks in when get_option() is called with zero extra
+	 * arguments, which also requires register_setting() to have already run
+	 * in the current request (i.e. admin_init fired). The real crosspost
+	 * runs on wp-cron, where admin_init never fires, so these are resolved
+	 * by hand in option_or_default() instead.
+	 */
+	const UTM_DEFAULTS = array(
+		'lcp_utm_source'   => 'linkedin',
+		'lcp_utm_medium'   => 'social',
+		'lcp_utm_campaign' => 'crosspost',
+	);
+
+	/**
 	 * Hook registration.
 	 *
 	 * @return void
@@ -92,33 +107,17 @@ final class LCP_Settings {
 			'lcp_app'
 		);
 
-		register_setting(
-			self::GROUP,
-			'lcp_utm_source',
-			array(
-				'type'              => 'string',
-				'sanitize_callback' => 'sanitize_text_field',
-				'default'           => 'linkedin',
-			)
-		);
-		register_setting(
-			self::GROUP,
-			'lcp_utm_medium',
-			array(
-				'type'              => 'string',
-				'sanitize_callback' => 'sanitize_text_field',
-				'default'           => 'social',
-			)
-		);
-		register_setting(
-			self::GROUP,
-			'lcp_utm_campaign',
-			array(
-				'type'              => 'string',
-				'sanitize_callback' => 'sanitize_text_field',
-				'default'           => 'crosspost',
-			)
-		);
+		foreach ( self::UTM_DEFAULTS as $option => $default ) {
+			register_setting(
+				self::GROUP,
+				$option,
+				array(
+					'type'              => 'string',
+					'sanitize_callback' => 'sanitize_text_field',
+					'default'           => $default,
+				)
+			);
+		}
 		register_setting(
 			self::GROUP,
 			'lcp_extra_params',
@@ -265,7 +264,7 @@ final class LCP_Settings {
 	public static function field_utm_source(): void {
 		printf(
 			'<input type="text" name="lcp_utm_source" value="%s" class="regular-text">',
-			esc_attr( (string) get_option( 'lcp_utm_source', '' ) )
+			esc_attr( self::option_or_default( 'lcp_utm_source' ) )
 		);
 	}
 
@@ -277,7 +276,7 @@ final class LCP_Settings {
 	public static function field_utm_medium(): void {
 		printf(
 			'<input type="text" name="lcp_utm_medium" value="%s" class="regular-text">',
-			esc_attr( (string) get_option( 'lcp_utm_medium', '' ) )
+			esc_attr( self::option_or_default( 'lcp_utm_medium' ) )
 		);
 	}
 
@@ -289,8 +288,27 @@ final class LCP_Settings {
 	public static function field_utm_campaign(): void {
 		printf(
 			'<input type="text" name="lcp_utm_campaign" value="%s" class="regular-text">',
-			esc_attr( (string) get_option( 'lcp_utm_campaign', '' ) )
+			esc_attr( self::option_or_default( 'lcp_utm_campaign' ) )
 		);
+	}
+
+	/**
+	 * A UTM option's saved value, or its pre-filled default when the option
+	 * has never been saved (row absent from wp_options entirely). Once an
+	 * admin saves the settings form — even blank — the saved value (which
+	 * may be '') always wins; this only covers the untouched, fresh-install
+	 * case. See the note on UTM_DEFAULTS for why get_option()'s own default
+	 * handling can't be used here.
+	 *
+	 * @param string $option One of the UTM_DEFAULTS keys.
+	 * @return string
+	 */
+	private static function option_or_default( string $option ): string {
+		$value = get_option( $option, false );
+		if ( false === $value ) {
+			return self::UTM_DEFAULTS[ $option ] ?? '';
+		}
+		return (string) $value;
 	}
 
 	/**
@@ -348,14 +366,10 @@ final class LCP_Settings {
 	 */
 	public static function tracked_link( string $url ): string {
 		$params = array();
-		foreach ( array(
-			'utm_source'   => 'lcp_utm_source',
-			'utm_medium'   => 'lcp_utm_medium',
-			'utm_campaign' => 'lcp_utm_campaign',
-		) as $param => $option ) {
-			$value = trim( (string) get_option( $option, '' ) );
+		foreach ( array_keys( self::UTM_DEFAULTS ) as $option ) {
+			$value = trim( self::option_or_default( $option ) );
 			if ( '' !== $value ) {
-				$params[ $param ] = $value;
+				$params[ substr( $option, strlen( 'lcp_' ) ) ] = $value;
 			}
 		}
 
